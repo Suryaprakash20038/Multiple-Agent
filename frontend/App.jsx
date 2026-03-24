@@ -14,10 +14,10 @@ const App = () => {
     try {
       setLoading(true);
       const resEmp = await axios.get('http://localhost:5000/api/employees');
-      setEmployees(resEmp.data);
+      setEmployees(Array.isArray(resEmp.data) ? resEmp.data : []);
       if (activeTab === 'attendance') {
         const resAtt = await axios.get('http://localhost:5000/api/attendance');
-        setAttendance(resAtt.data);
+        setAttendance(Array.isArray(resAtt.data) ? resAtt.data : []);
       }
       setLoading(false);
     } catch (err) {

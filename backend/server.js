@@ -62,16 +62,17 @@ app.post('/api/agent', (req, res) => {
       return res.status(500).json({ error: 'AI Agent failed to execute', details: stderr });
     }
     
+    console.log('Agent Raw Output:', stdout);
+    
     try {
-      const parts = stdout.split('FINAL_JSON:');
-      if (parts.length > 1) {
-         let jsonStr = parts[1].trim();
-         // simple protection if print statement added extra newlines
-         const closingBraceIndex = jsonStr.lastIndexOf('}');
-         if(closingBraceIndex !== -1) {
-             jsonStr = jsonStr.substring(0, closingBraceIndex + 1);
-         }
-         
+      const startTag = '---BEGIN_JSON---';
+      const endTag = '---END_JSON---';
+      
+      const startIndex = stdout.indexOf(startTag);
+      const endIndex = stdout.indexOf(endTag);
+      
+      if (startIndex !== -1 && endIndex !== -1) {
+        const jsonStr = stdout.substring(startIndex + startTag.length, endIndex).trim();
         const payload = JSON.parse(jsonStr);
         const queries = payload.queries || [];
         
@@ -83,6 +84,7 @@ app.post('/api/agent', (req, res) => {
         }
         res.json(payload);
       } else {
+        console.error('Missing JSON markers in agent output');
         res.status(500).json({ error: 'Agent failed to emit final JSON. See console.' });
       }
     } catch(err) {

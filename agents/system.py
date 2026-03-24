@@ -5,232 +5,179 @@ import subprocess
 import sys
 import io
 import urllib.request
+import random
+import re
 
-# FIX WINDOWS ENCODING CRASH FOR EMOJIS
+# --- WINDOWS UTF-8 ENCODING ---
 if sys.platform == 'win32':
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
 
-def ask_gemini(prompt, api_key):
-    if not api_key:
-        print("[System] ⚠️ No API key provided, falling back to heuristic parsing.", file=sys.stderr)
-        return None
-        
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={api_key}"
-    system_instruction = '''You are the AI Agent for an Employee Management System.
-The DB table is `employees`.
+def agent_log(msg):
+    print(msg, file=sys.stderr, flush=True)
 
-RULES:
-1. If user wants to ADD A NEW FIELD/COLUMN (e.g. "Add field DOB"):
-{"task_type": "add_column", "new_field": "dob"}
-
-2. If user wants to ADD AN EMPLOYEE (e.g. "Add Arun as Dev with field dob 1999"):
-{"task_type": "insert_employee", "data": {"name": "Arun", "role": "Dev", "email": "arun@ems.com", "dob": "1999"}}
-
-3. If user wants to DELETE an employee by matching a condition (e.g. "Delete Arun", "Delete DOB 1999"):
-{"task_type": "delete_employee", "delete_field": "matched_column_name_in_lowercase", "delete_value": "matched_value"}
-
-4. If user wants to DELETE A FIELD/COLUMN entirely from the database (e.g. "Delete field DOB"):
-{"task_type": "delete_column", "delete_field": "fieldNameInLowercase"}
-
-5. If user wants to TEST AND DEPLOY the code to GitHub (e.g. "Deploy to github", "Test and deploy"):
-{"task_type": "deploy"}
-
-Respond ONLY with valid JSON. Extract as many fields as the user provides into the "data" dictionary.'''
-    
-    data = {"contents": [{"role": "user", "parts": [{"text": system_instruction + "\n\nUser Prompt: " + prompt}]}]}
-    
+# --- REUSABLE API WRAPPER ---
+def ask_api_hybrid(url, headers, body, model_name):
     try:
-        req = urllib.request.Request(url, data=json.dumps(data).encode('utf-8'), headers={'Content-Type': 'application/json'})
-        with urllib.request.urlopen(req) as response:
-            res = json.loads(response.read().decode())
-            text = res['candidates'][0]['content']['parts'][0]['text']
-            text = text.replace('```json', '').replace('```', '').strip()
-            return json.loads(text)
+        req = urllib.request.Request(url, data=json.dumps(body).encode('utf-8'), headers=headers)
+        with urllib.request.urlopen(req, timeout=12) as response:
+            data = json.loads(response.read().decode())
+            if "anthropic" in url: return data['content'][0]['text']
+            if "openai" in url: return data['choices'][0]['message']['content']
+            if "generativelanguage" in url: return data['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
-        print(f"Gemini API Error: {e}", file=sys.stderr)
-        return None
+        print(f"[API Error - {model_name}] {e}", file=sys.stderr)
+    return None
 
-class SharedMemory:
-    def __init__(self):
-        self.context = {}
+def ask_gemini(prompt, api_key, system_instruction=None):
+    if not api_key: return None
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    instr = system_instruction or "Act as a specialized EMS orchestrator."
+    body = {"contents": [{"role": "user", "parts": [{"text": f"{instr}\n\nPrompt: {prompt}"}]}]}
+    return ask_api_hybrid(url, {'Content-Type': 'application/json'}, body, "Gemini")
 
-    def set(self, key, value):
-        print(f"[MEMORY] Stored: {key}")
-        self.context[key] = value
+# --- AGENT LOGIC ---
+class HybridMemory:
+    def __init__(self, prompt, keys):
+        self.storage = {"prompt": prompt, "keys": keys, "task_type": "unknown", "sql_queries": [], "test_passed": True, "task_data": {}}
+    def set(self, k, v): self.storage[k] = v
+    def get(self, k, default=None): return self.storage.get(k, default)
 
-    def get(self, key):
-        return self.context.get(key)
-
-class Agent:
-    def __init__(self, name, role):
-        self.name = name
-        self.role = role
-
-    def __call__(self, memory):
-        print(f"\n--- 🤖 [{self.name}] ({self.role}) ---")
-        return self.execute(memory)
-
+class Planner:
     def execute(self, memory):
-        return None
+        p = memory.get("prompt")
+        agent_log(f"🧠 Planner: Parsing Intent for '{p}'...")
+        lp = p.lower().strip()
+        
+        # LAYER 1: STRICT REGEX HEURISTICS (Fast & Reliable)
+        
+        # Add Column: "Add field Salary", "New column Phone", etc.
+        match = re.search(r'(?:add|new|create|create new|add a)\s+(?:field|column)\s+(\w+)', lp)
+        if not match: match = re.search(r'(?:field|column)\s+(\w+)\s+(?:add|create|new)', lp)
+        if match:
+             memory.set("task_type", "add_column")
+             memory.set("task_data", {"new_field": match.group(1)})
+             return "coder"
+             
+        # Delete Column: "Delete field Salary", "Remove column Dob", etc.
+        match = re.search(r'(?:delete|remove|drop|remove the)\s+(?:field|column)\s+(\w+)', lp)
+        if not match: match = re.search(r'(?:field|column)\s+(\w+)\s+(?:delete|remove|drop)', lp)
+        if match:
+             memory.set("task_type", "delete_column")
+             memory.set("task_data", {"delete_field": match.group(1)})
+             return "coder"
 
-class PlannerAgent(Agent):
-    def execute(self, memory):
-        prompt = memory.get("prompt")
-        api_key = memory.get("api_key")
-        print(f"[{self.name}] 🧠 Planning task via Gemini API for: '{prompt}'")
-        
-        gemini_result = ask_gemini(prompt, api_key)
-        
-        if gemini_result:
-            print(f"[{self.name}] ✅ Gemini parsed successfully: {gemini_result}")
-            memory.set("gemini_data", gemini_result)
-            memory.set("task_type", gemini_result.get("task_type"))
-        else:
-            print(f"[{self.name}] ⚠️ Fallback to basic string parsing...")
-            memory.set("task_type", "add_column")
-            memory.set("gemini_data", {"new_field": "fallback_field"})
-                
-        return "transfer_to_researcher"
+        # Deploy: "Deploy to GitHub", "Push updates", etc.
+        if "deploy" in lp or "github" in lp or "push" in lp:
+             memory.set("task_type", "deploy")
+             return "coder"
 
-class ResearchAgent(Agent):
-    def execute(self, memory):
-        task_type = memory.get("task_type")
-        print(f"[{self.name}] 🔍 Researching Postgres execution pattern for {task_type}...")
-        return "transfer_to_coder"
-
-class CoderAgent(Agent):
-    def execute(self, memory):
-        import random
-        task_type = memory.get("task_type")
-        data = memory.get("gemini_data") or {}
-        print(f"[{self.name}] 💻 Writing SQL deployment logic...")
+        # LAYER 2: AI BRAIN (Gemini)
+        sys_instr = """Strict JSON Output Only: {"task_type": "insert_employee|delete_employee", "data": {}, "delete_value": "NAME"}
+- insert_employee: "Add Surya" -> {"task_type": "insert_employee", "data": {"name": "Surya"}}
+- delete_employee: "Remove Arun" -> {"task_type": "delete_employee", "delete_value": "Arun"}
+Respond ONLY with JSON."""
         
-        sql_queries = []
-        
-        if task_type == "add_column":
-            new_field = data.get("new_field", "custom_field").lower().replace(" ", "_")
-            sql_queries.append(f"ALTER TABLE employees ADD COLUMN IF NOT EXISTS {new_field} VARCHAR(255);")
-        
-        elif task_type == "insert_employee":
-            emp_data = data.get("data", {})
-            if not isinstance(emp_data, dict):
-                emp_data = {}
-            if "name" not in emp_data: emp_data["name"] = "Unknown"
-            if "email" not in emp_data or not emp_data["email"]:
-                raw_email = emp_data.get("name", "bot").replace(" ", "").lower()
-                emp_data["email"] = f"{raw_email}{random.randint(100,999)}@ems.com"
-                
-            cols = []
-            vals = []
-            for k, v in emp_data.items():
-                cols.append(k)
-                vals.append(v)
+        raw_res = ask_gemini(p, memory.get("keys")["gemini"], sys_instr)
+        if raw_res:
+            try:
+                json_match = re.search(r'\{.*\}', raw_res.replace('\n', ' '))
+                if json_match:
+                    data = json.loads(json_match.group())
+                    memory.set("task_type", data.get("task_type", "unknown"))
+                    memory.set("task_data", data)
+                    if data.get("task_type") != "unknown": return "coder"
+            except: pass
             
-            # Using basic string formatting for demo (not safe for production, but okay for this mocked swarm)
-            cols_str = ", ".join(cols)
-            vals_str = ", ".join([f"'{str(v)}'" for v in vals])
-            sql_queries.append(f"INSERT INTO employees ({cols_str}) VALUES ({vals_str});")
-            
-        elif task_type == "delete_employee":
-            col = data.get("delete_field", "name")
-            val = data.get("delete_value", "Unknown")
-            # Use ILIKE with wildcards for case-insensitive substring matching
-            sql_queries.append(f"DELETE FROM employees WHERE {col} ILIKE '%{val}%';")
-            
-        elif task_type == "delete_column":
-            col = data.get("delete_field", "custom_field").lower().replace(" ", "_")
-            sql_queries.append(f"ALTER TABLE employees DROP COLUMN IF EXISTS {col};")
-            
-        memory.set("sql_queries", sql_queries)
-        return "transfer_to_tester"
-
-class TesterAgent(Agent):
-    def execute(self, memory):
-        task_type = memory.get("task_type")
-        print(f"[{self.name}] 🧪 Validating system via Integration Tests...")
+        # LAYER 3: FALLBACK HEURISTICS (If AI is confused)
         
-        if task_type == "deploy":
-            print(f"[{self.name}] Running Integration Tests before deployment...")
-            import subprocess
-            result = subprocess.run(["node", "integration.test.js"], capture_output=True, text=True)
-            print(result.stdout)
-            if result.returncode != 0:
-                print(f"[{self.name}] ❌ Integration Tests FAILED! Deployment stopped.")
+        # Delete Employee: "Delete Surya", "Remove employee Arun", etc.
+        match = re.search(r'(?:delete|remove)\s+(?:employee|user|worker|the person)?\s*(\w+)', lp)
+        if match:
+             memory.set("task_type", "delete_employee")
+             memory.set("task_data", {"delete_value": match.group(1)})
+        # Insert Employee: "Add Surya", "Create user Rohan", etc.
+        elif "add" in lp or "create" in lp or "new" in lp:
+             # Grab first capitalized word or first non-keyword
+             words = p.split()
+             name = words[-1] # Simple guess
+             memory.set("task_type", "insert_employee")
+             memory.set("task_data", {"data": {"name": name.capitalize(), "role": "Employee"}})
+             
+        return "coder"
+
+class Coder:
+    def execute(self, memory):
+        tt = memory.get("task_type")
+        td = memory.get("task_data")
+        agent_log(f"👨‍💻 Coder: Processing {tt}...")
+        queries = []
+        
+        if tt == "add_column":
+            col = td.get("new_field", "").lower().replace(" ", "_").strip()
+            if col: queries.append(f"ALTER TABLE employees ADD COLUMN IF NOT EXISTS \"{col}\" TEXT;")
+        elif tt == "insert_employee":
+            ed = td.get("data", {})
+            if ed.get("name"):
+                 if not ed.get("email"): ed["email"] = f"{ed.get('name','user').lower()}@ems.com"
+                 cols = ", ".join([f'"{k}"' for k in ed.keys()])
+                 vals = ", ".join([f"'{str(v)}'" for v in ed.values()])
+                 queries.append(f"INSERT INTO employees ({cols}) VALUES ({vals});")
+        elif tt == "delete_employee":
+            val = td.get("delete_value", "")
+            if val:
+                queries.append(f"DELETE FROM employees WHERE name ILIKE '%{val}%' OR email ILIKE '%{val}%';")
+        elif tt == "delete_column":
+            col = td.get("delete_field", "")
+            if col: 
+                queries.append(f"ALTER TABLE employees DROP COLUMN IF EXISTS \"{col}\";")
+                # Also drop column from attendance if it was there? No, just employees.
+            
+        memory.set("sql_queries", queries)
+        return "tester"
+
+class Tester:
+    def execute(self, memory):
+        if memory.get("task_type") == "deploy":
+            agent_log("🧪 Tester: Running Node.js tests...")
+            try:
+                subprocess.run(["node", "backend/integration.test.js"], check=True)
+            except:
                 memory.set("test_passed", False)
                 return "finish"
-            
-        print(f"[{self.name}] ✅ Code is safe for staging!")
-        memory.set("test_passed", True)
-        return "transfer_to_devops"
+        return "devops"
 
-class DebugAgent(Agent):
+class DevOps:
     def execute(self, memory):
-        return "transfer_to_devops"
-
-class DevOpsAgent(Agent):
-    def execute(self, memory):
-        import subprocess
-        task_type = memory.get("task_type")
-        print(f"[{self.name}] 🚀 Packaging deployment signal...")
-        
-        if task_type == "deploy":
-            if memory.get("test_passed"):
-                print(f"[{self.name}] 🌐 Pushing code to GitHub (Triggering CI/CD)...")
-                subprocess.run(["git", "add", "."], cwd="..")
-                subprocess.run(["git", "commit", "-m", "AI Agent Automated Deployment 🚀"], cwd="..")
-                subprocess.run(["git", "push"], cwd="..")
-                payload = {"status": "success", "message": "Successfully tested and deployed code to GitHub Actions! 🎉"}
-            else:
-                payload = {"status": "error", "message": "Tests failed, deployment aborted."}
-                
-            print(f"\nFINAL_JSON:{json.dumps(payload)}")
-            return "finish"
-            
-        queries = memory.get("sql_queries", [])
-        final_payload = {
-            "status": "success",
-            "queries": queries,
-            "message": "AI Database Schema modification successful!" if task_type == "schema_change" or task_type == "add_column" else "Task completed securely using AI!"
-        }
-        
-        print(f"\nFINAL_JSON:{json.dumps(final_payload)}")
+        if memory.get("task_type") == "deploy" and memory.get("test_passed"):
+            agent_log("⚙️ DevOps: Pushing to GitHub...")
+            try:
+                subprocess.run(["git", "add", "."], cwd=".")
+                subprocess.run(["git", "commit", "-m", "AI Swarm Deploy 🚀"], cwd=".")
+                subprocess.run(["git", "push"], cwd=".")
+            except: pass
         return "finish"
 
-def run_pro_swarm(prompt, api_key):
-    print(f"\n{'='*60}")
-    print(f"🔥 STARTING END-TO-END AI SOFTWARE TEAM WORKFLOW 🔥")
-    print(f"Ticket: {prompt}")
-    print(f"{'='*60}")
-    
-    memory = SharedMemory()
-    memory.set("prompt", prompt)
-    memory.set("api_key", api_key)
-    
-    agents = {
-        "planner": PlannerAgent("Planner", "Strategy"),
-        "researcher": ResearchAgent("Researcher", "Knowledge"),
-        "coder": CoderAgent("Coder", "Implementation"),
-        "tester": TesterAgent("Tester", "Verification"),
-        "debugger": DebugAgent("Debugger", "Correction"),
-        "devops": DevOpsAgent("DevOps", "Shipment")
+def orchestrate(p, gk):
+    keys = {"gemini": gk, "claude": os.getenv("CLAUDE_API_KEY"), "openai": os.getenv("OPENAI_API_KEY")}
+    memory = HybridMemory(p, keys)
+    agents = {"planner": Planner(), "coder": Coder(), "tester": Tester(), "devops": DevOps()}
+    curr = "planner"
+    try:
+        while curr != "finish": curr = agents[curr].execute(memory)
+    except Exception as e: print(f"[Loop Error] {e}", file=sys.stderr)
+
+    # FINAL MARKER JSON
+    result = {
+        "status": "success" if memory.get("test_passed") else "error",
+        "task": memory.get("task_type"),
+        "queries": memory.get("sql_queries"),
+        "message": f"Hybrid AI Swarm successfully executed: {memory.get('task_type')}"
     }
-
-    current_agent = agents["planner"]
-    while True:
-        next_step = current_agent(memory)
-        if not next_step or next_step == "finish":
-            break
-        
-        target_name = next_step.split("_")[-1]
-        if target_name in agents:
-            current_agent = agents[target_name]
-        else:
-            print(f"⚠️ Agent '{target_name}' not found!")
-            break
-
-    print("\n✅ --- SWARM WORKFLOW COMPLETED ---")
+    sys.stdout.write("\n---BEGIN_JSON---\n")
+    sys.stdout.write(json.dumps(result))
+    sys.stdout.write("\n---END_JSON---\n")
+    sys.stdout.flush()
 
 if __name__ == "__main__":
-    prompt_arg = sys.argv[1] if len(sys.argv) > 1 else "Add test employee as standard"
-    key_arg = sys.argv[2] if len(sys.argv) > 2 else ""
-    run_pro_swarm(prompt_arg, key_arg)
+    if len(sys.argv) < 3: sys.exit(1)
+    orchestrate(sys.argv[1], sys.argv[2])
