@@ -72,9 +72,7 @@ class Planner:
              return "coder"
 
         # LAYER 2: AI BRAIN (Gemini)
-        sys_instr = """Strict JSON Output Only: {"task_type": "insert_employee|delete_employee", "data": {}, "delete_value": "NAME"}
-- insert_employee: "Add Surya" -> {"task_type": "insert_employee", "data": {"name": "Surya"}}
-- delete_employee: "Remove Arun" -> {"task_type": "delete_employee", "delete_value": "Arun"}
+        sys_instr = """Strict JSON Output Only: {"task_type": "insert_employee|delete_employee", "data": {"name": "NAME", "role": "Employee"}, "delete_value": "NAME"}
 Respond ONLY with JSON."""
         
         raw_res = ask_gemini(p, memory.get("keys")["gemini"], sys_instr)
@@ -88,20 +86,19 @@ Respond ONLY with JSON."""
                     if data.get("task_type") != "unknown": return "coder"
             except: pass
             
-        # LAYER 3: FALLBACK HEURISTICS (If AI is confused)
-        
+        # LAYER 3: FALLBACK HEURISTICS
         # Delete Employee: "Delete Surya", "Remove employee Arun", etc.
-        match = re.search(r'(?:delete|remove)\s+(?:employee|user|worker|the person)?\s*(\w+)', lp)
+        match = re.search(r'(?:delete|remove)\s+(?:employee|user|worker|the person)?\s*(.+)', lp)
         if match:
              memory.set("task_type", "delete_employee")
-             memory.set("task_data", {"delete_value": match.group(1)})
-        # Insert Employee: "Add Surya", "Create user Rohan", etc.
+             memory.set("task_data", {"delete_value": match.group(1).strip().title()})
+        # Insert Employee: "Add Surya Kumar", "Create user Rohan", etc.
         elif "add" in lp or "create" in lp or "new" in lp:
-             # Grab first capitalized word or first non-keyword
-             words = p.split()
-             name = words[-1] # Simple guess
-             memory.set("task_type", "insert_employee")
-             memory.set("task_data", {"data": {"name": name.capitalize(), "role": "Employee"}})
+             match = re.search(r'(?:add|create|new)\s+(?:employee|user|worker|the person)?\s*(.+)', lp)
+             if match:
+                  name = match.group(1).strip().title()
+                  memory.set("task_type", "insert_employee")
+                  memory.set("task_data", {"data": {"name": name, "role": "Employee"}})
              
         return "coder"
 
@@ -116,9 +113,9 @@ class Coder:
             col = td.get("new_field", "").lower().replace(" ", "_").strip()
             if col: queries.append(f"ALTER TABLE employees ADD COLUMN IF NOT EXISTS \"{col}\" TEXT;")
         elif tt == "insert_employee":
-            ed = td.get("data", {})
+            ed = td.get("data", td if "name" in td else {})
             if ed.get("name"):
-                 if not ed.get("email"): ed["email"] = f"{ed.get('name','user').lower()}@ems.com"
+                 if not ed.get("email"): ed["email"] = f"{ed.get('name','user').lower().replace(' ','_')}@ems.com"
                  cols = ", ".join([f'"{k}"' for k in ed.keys()])
                  vals = ", ".join([f"'{str(v)}'" for v in ed.values()])
                  queries.append(f"INSERT INTO employees ({cols}) VALUES ({vals});")
@@ -128,9 +125,7 @@ class Coder:
                 queries.append(f"DELETE FROM employees WHERE name ILIKE '%{val}%' OR email ILIKE '%{val}%';")
         elif tt == "delete_column":
             col = td.get("delete_field", "")
-            if col: 
-                queries.append(f"ALTER TABLE employees DROP COLUMN IF EXISTS \"{col}\";")
-                # Also drop column from attendance if it was there? No, just employees.
+            if col: queries.append(f"ALTER TABLE employees DROP COLUMN IF EXISTS \"{col}\";")
             
         memory.set("sql_queries", queries)
         return "tester"
@@ -141,7 +136,8 @@ class Tester:
             agent_log("🧪 Tester: Running Node.js tests...")
             try:
                 subprocess.run(["node", "backend/integration.test.js"], check=True)
-            except:
+            except Exception as e:
+                agent_log(f"❌ Test Failed: {e}")
                 memory.set("test_passed", False)
                 return "finish"
         return "devops"
@@ -151,10 +147,15 @@ class DevOps:
         if memory.get("task_type") == "deploy" and memory.get("test_passed"):
             agent_log("⚙️ DevOps: Pushing to GitHub...")
             try:
-                subprocess.run(["git", "add", "."], cwd=".")
-                subprocess.run(["git", "commit", "-m", "AI Swarm Deploy 🚀"], cwd=".")
-                subprocess.run(["git", "push"], cwd=".")
-            except: pass
+                subprocess.run(["git", "add", "."], check=True)
+                subprocess.run(["git", "commit", "-m", "AI Swarm Autonomous Push 🚀"], check=True)
+                res = subprocess.run(["git", "push"], capture_output=True, text=True)
+                if res.returncode != 0:
+                     agent_log(f"❌ Git Push Error: {res.stderr}")
+                else:
+                     agent_log("✅ Git Push Success!")
+            except Exception as e:
+                agent_log(f"❌ DevOps Error: {e}")
         return "finish"
 
 def orchestrate(p, gk):
@@ -166,7 +167,6 @@ def orchestrate(p, gk):
         while curr != "finish": curr = agents[curr].execute(memory)
     except Exception as e: print(f"[Loop Error] {e}", file=sys.stderr)
 
-    # FINAL MARKER JSON
     result = {
         "status": "success" if memory.get("test_passed") else "error",
         "task": memory.get("task_type"),
