@@ -37,6 +37,17 @@ jobs:
       - name: Install dependencies (Backend)
         run: cd backend && npm install
         
+      - name: Setup Database Schema
+        env:
+          DB_USER: postgres
+          DB_PASSWORD: password
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: ems_db
+        run: |
+          cd backend
+          node setup-db.js
+          
       - name: Run Backend Server
         env:
           DB_USER: postgres
