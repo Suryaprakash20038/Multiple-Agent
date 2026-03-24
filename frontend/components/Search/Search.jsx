@@ -16,7 +16,7 @@ const PromptBox = ({ onAdd }) => {
 
     const lowerPrompt = prompt.toLowerCase();
     
-    if (lowerPrompt.includes('add') || lowerPrompt.includes('delete')) {
+    if (lowerPrompt.includes('add') || lowerPrompt.includes('delete') || lowerPrompt.includes('deploy') || lowerPrompt.includes('test')) {
       try {
         const response = await axios.post('http://localhost:5000/api/agent', {
           prompt: prompt

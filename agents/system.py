@@ -32,6 +32,9 @@ RULES:
 4. If user wants to DELETE A FIELD/COLUMN entirely from the database (e.g. "Delete field DOB"):
 {"task_type": "delete_column", "delete_field": "fieldNameInLowercase"}
 
+5. If user wants to TEST AND DEPLOY the code to GitHub (e.g. "Deploy to github", "Test and deploy"):
+{"task_type": "deploy"}
+
 Respond ONLY with valid JSON. Extract as many fields as the user provides into the "data" dictionary.'''
     
     data = {"contents": [{"role": "user", "parts": [{"text": system_instruction + "\n\nUser Prompt: " + prompt}]}]}
@@ -143,9 +146,21 @@ class CoderAgent(Agent):
 
 class TesterAgent(Agent):
     def execute(self, memory):
-        print(f"[{self.name}] 🧪 Validating SQL syntax boundaries...")
-        time.sleep(1)
+        task_type = memory.get("task_type")
+        print(f"[{self.name}] 🧪 Validating system via Integration Tests...")
+        
+        if task_type == "deploy":
+            print(f"[{self.name}] Running Integration Tests before deployment...")
+            import subprocess
+            result = subprocess.run(["node", "integration.test.js"], capture_output=True, text=True)
+            print(result.stdout)
+            if result.returncode != 0:
+                print(f"[{self.name}] ❌ Integration Tests FAILED! Deployment stopped.")
+                memory.set("test_passed", False)
+                return "finish"
+            
         print(f"[{self.name}] ✅ Code is safe for staging!")
+        memory.set("test_passed", True)
         return "transfer_to_devops"
 
 class DebugAgent(Agent):
@@ -154,13 +169,28 @@ class DebugAgent(Agent):
 
 class DevOpsAgent(Agent):
     def execute(self, memory):
-        print(f"[{self.name}] 🚀 Packaging deployment signal for Node.js Host...")
+        import subprocess
+        task_type = memory.get("task_type")
+        print(f"[{self.name}] 🚀 Packaging deployment signal...")
         
-        queries = memory.get("sql_queries")
+        if task_type == "deploy":
+            if memory.get("test_passed"):
+                print(f"[{self.name}] 🌐 Pushing code to GitHub (Triggering CI/CD)...")
+                subprocess.run(["git", "add", "."], cwd="..")
+                subprocess.run(["git", "commit", "-m", "AI Agent Automated Deployment 🚀"], cwd="..")
+                subprocess.run(["git", "push"], cwd="..")
+                payload = {"status": "success", "message": "Successfully tested and deployed code to GitHub Actions! 🎉"}
+            else:
+                payload = {"status": "error", "message": "Tests failed, deployment aborted."}
+                
+            print(f"\nFINAL_JSON:{json.dumps(payload)}")
+            return "finish"
+            
+        queries = memory.get("sql_queries", [])
         final_payload = {
             "status": "success",
             "queries": queries,
-            "message": "AI Agents altered Database Schema automatically and executed task!" if memory.get("task_type") == "schema_change" else "Data securely imported using AI!"
+            "message": "AI Database Schema modification successful!" if task_type == "schema_change" or task_type == "add_column" else "Task completed securely using AI!"
         }
         
         print(f"\nFINAL_JSON:{json.dumps(final_payload)}")

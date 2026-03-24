@@ -1,0 +1,55 @@
+name: AI Multi-Agent CI/CD
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  integration-test:
+    runs-on: ubuntu-latest
+    
+    # We will simulate PostgreSQL locally in GitHub Actions for tests
+    services:
+      postgres:
+        image: postgres:14
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: password
+          POSTGRES_DB: ems_db
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 18
+          
+      - name: Install dependencies (Backend)
+        run: cd backend && npm install
+        
+      - name: Run Backend Server
+        env:
+          DB_USER: postgres
+          DB_PASSWORD: password
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: ems_db
+        run: |
+          cd backend
+          npm start &
+          sleep 5
+          
+      - name: Run AI Agent Integration Test
+        run: |
+          cd backend
+          node integration.test.js
