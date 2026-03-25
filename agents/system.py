@@ -147,8 +147,8 @@ class DevOps:
         if memory.get("task_type") == "deploy" and memory.get("test_passed"):
             agent_log("⚙️ DevOps: Pushing to GitHub...")
             try:
-                subprocess.run(["git", "add", "."], check=True)
-                subprocess.run(["git", "commit", "-m", "AI Swarm Autonomous Push 🚀"], check=True)
+                subprocess.run(["git", "add", "."], check=False) # check=False because there might be nothing to add
+                subprocess.run(["git", "commit", "--allow-empty", "-m", "AI Swarm Autonomous Push 🚀"], check=False)
                 res = subprocess.run(["git", "push"], capture_output=True, text=True)
                 if res.returncode != 0:
                      agent_log(f"❌ Git Push Error: {res.stderr}")
