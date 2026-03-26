@@ -203,7 +203,7 @@ app.post('/api/agent', async (req, res) => {
   try {
     const { stdout, stderr } = await new Promise((resolve, reject) => {
       execFile(pythonCommand, [scriptPath, prompt, process.env.GEMINI_API_KEY || ''],
-        { env: { ...process.env, PYTHONIOENCODING: 'utf-8' }, timeout: 30000 },
+        { env: { ...process.env, PYTHONIOENCODING: 'utf-8', CLAUDE_API_KEY: process.env.CLAUDE_API_KEY || '', OPENAI_API_KEY: process.env.OPENAI_API_KEY || '' }, timeout: 30000 },
         (error, stdout, stderr) => {
           if (stderr) console.error('🤖 Agent Telemetry (Stderr):\n', stderr);
           if (error) return reject(error);
