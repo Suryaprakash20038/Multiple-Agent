@@ -163,74 +163,82 @@ function parseAgentTask(prompt) {
   return { taskType, queries };
 }
 
+// JS Fallback: parse prompt and run SQL directly
+async function runJsFallback(prompt, res) {
+  try {
+    const { taskType, queries } = parseAgentTask(prompt);
+    if (taskType === 'unknown' || queries.length === 0) {
+      return res.status(400).json({ error: 'Could not understand the command. Try: add employee Name, delete Name, update Name field-value, add field fieldname' });
+    }
+    if (DB_MODE !== 'simulation') {
+      for (let q of queries) {
+        console.log('⚡ Running DB Action via JS Agent:', q);
+        await pool.query(q);
+      }
+    }
+    return res.json({
+      status: 'success',
+      task: taskType,
+      queries: queries,
+      message: `AI Agent executed: ${taskType}`
+    });
+  } catch (fallbackErr) {
+    console.error('🤖 JS Agent fallback error:', fallbackErr);
+    return res.status(500).json({ error: 'Agent execution failed', details: fallbackErr.message });
+  }
+}
+
 // AI AGENT INTEGRATION (React <-> Python Swarm)
-app.post('/api/agent', (req, res) => {
+app.post('/api/agent', async (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'No prompt provided' });
 
   const pythonCommand = os.platform() === 'win32' ? 'python' : 'python3';
   const scriptPath = path.join(__dirname, '..', 'agents', 'system.py');
 
-  execFile(pythonCommand, [scriptPath, prompt, process.env.GEMINI_API_KEY || ''], { env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (error, stdout, stderr) => {
-    if (stderr) console.error('🤖 Agent Telemetry (Stderr):\n', stderr);
-    handleAgentResponse(error, stdout, stderr);
-  });
-
-  async function handleAgentResponse(error, stdout, stderr) {
-    // If Python execution fails, use JS-based fallback
-    if (error) {
-      console.error('🤖 Python Agent unavailable, using JS fallback. Error:', error.message);
-      try {
-        const { taskType, queries } = parseAgentTask(prompt);
-        if (DB_MODE !== 'simulation') {
-          for (let q of queries) {
-            console.log('⚡ Running DB Action via JS Agent:', q);
-            await pool.query(q);
-          }
+  // Try Python agent first
+  try {
+    const { stdout, stderr } = await new Promise((resolve, reject) => {
+      execFile(pythonCommand, [scriptPath, prompt, process.env.GEMINI_API_KEY || ''],
+        { env: { ...process.env, PYTHONIOENCODING: 'utf-8' }, timeout: 30000 },
+        (error, stdout, stderr) => {
+          if (stderr) console.error('🤖 Agent Telemetry (Stderr):\n', stderr);
+          if (error) return reject(error);
+          resolve({ stdout, stderr });
         }
-        return res.json({
-          status: 'success',
-          task: taskType,
-          queries: queries,
-          message: `AI Agent executed: ${taskType}`
-        });
-      } catch (fallbackErr) {
-        console.error('🤖 JS Agent fallback error:', fallbackErr);
-        return res.status(500).json({ error: 'Agent execution failed', details: fallbackErr.message });
-      }
-    }
+      );
+    });
 
     console.log('🤖 Agent Raw Output:', stdout);
 
-    try {
-      const startTag = '===AGENT_B64_START===';
-      const endTag = '===AGENT_B64_END===';
+    const startTag = '===AGENT_B64_START===';
+    const endTag = '===AGENT_B64_END===';
+    const startIndex = stdout.indexOf(startTag);
+    const endIndex = stdout.indexOf(endTag);
 
-      const startIndex = stdout.indexOf(startTag);
-      const endIndex = stdout.indexOf(endTag);
+    if (startIndex !== -1 && endIndex !== -1) {
+      const b64Data = stdout.substring(startIndex + startTag.length, endIndex).trim();
+      const jsonStr = Buffer.from(b64Data, 'base64').toString('utf8');
+      const payload = JSON.parse(jsonStr);
+      console.log('⚡ AI Swarm Success (Decoded):', payload.task);
+      const queries = payload.queries || [];
 
-      if (startIndex !== -1 && endIndex !== -1) {
-        const b64Data = stdout.substring(startIndex + startTag.length, endIndex).trim();
-        const jsonStr = Buffer.from(b64Data, 'base64').toString('utf8');
-        const payload = JSON.parse(jsonStr);
-        console.log('⚡ AI Swarm Success (Decoded):', payload.task);
-        const queries = payload.queries || [];
-
-        if (DB_MODE !== 'simulation') {
-           for (let q of queries) {
-             console.log('⚡ Running DB Migration/Action via Agent:', q);
-             await pool.query(q);
-           }
+      if (DB_MODE !== 'simulation') {
+        for (let q of queries) {
+          console.log('⚡ Running DB Migration/Action via Agent:', q);
+          await pool.query(q);
         }
-        res.json(payload);
-      } else {
-        console.error('Missing JSON markers in agent output');
-        res.status(500).json({ error: 'Agent failed to emit final JSON. See console.' });
       }
-    } catch(err) {
-      console.error('🤖 Agent logic/parse error:', err);
-      res.status(500).json({ error: 'Agent execution/parse failure', details: err.message });
+      return res.json(payload);
+    } else {
+      // Python ran but no valid output — use JS fallback
+      console.error('⚠️ Python agent returned no markers, using JS fallback');
+      return await runJsFallback(prompt, res);
     }
+  } catch (err) {
+    // Python failed entirely — use JS fallback
+    console.error('🤖 Python Agent failed, using JS fallback. Error:', err.message);
+    return await runJsFallback(prompt, res);
   }
 });
 
