@@ -56,9 +56,26 @@ pool.query('SELECT NOW()', async (err, res) => {
           CREATE TABLE IF NOT EXISTS employees (
             id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
-            role VARCHAR(255) NOT NULL,
+            role VARCHAR(255) DEFAULT 'Employee',
             email VARCHAR(255) UNIQUE NOT NULL
           );
+          
+          -- Ensure missing columns are added if table existed before update
+          ALTER TABLE employees ADD COLUMN IF NOT EXISTS role VARCHAR(255) DEFAULT 'Employee';
+          ALTER TABLE employees ADD COLUMN IF NOT EXISTS email VARCHAR(255);
+          
+          -- Fix existing data to make email unique
+          UPDATE employees SET email = 'employee_' || id || '@ems.com' WHERE email IS NULL;
+          
+          -- Then set NOT NULL and UNIQUE if not already
+          ALTER TABLE employees ALTER COLUMN email SET NOT NULL;
+          DO $$ 
+          BEGIN 
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'employees_email_unique') THEN
+              ALTER TABLE employees ADD CONSTRAINT employees_email_unique UNIQUE (email);
+            END IF;
+          END $$;
+
           CREATE TABLE IF NOT EXISTS attendance (
             id SERIAL PRIMARY KEY,
             employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
@@ -77,52 +94,102 @@ pool.query('SELECT NOW()', async (err, res) => {
 
 // --- API ROUTES ---
 
+// --- JS-BASED AGENT LOGIC (fallback when Python is unavailable) ---
+function parseAgentTask(prompt) {
+  const lp = prompt.toLowerCase().trim();
+  let taskType = 'unknown';
+  let queries = [];
+
+  // Add column: "add field salary", "new column phone"
+  let match = lp.match(/(?:add|new|create)\s+(?:field|column)\s+(\w+)/);
+  if (match) {
+    const col = match[1].toLowerCase().replace(/\s+/g, '_');
+    taskType = 'add_column';
+    queries.push(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS "${col}" TEXT;`);
+    return { taskType, queries };
+  }
+
+  // Delete column: "delete field salary", "remove column dob"
+  match = lp.match(/(?:delete|remove|drop)\s+(?:field|column)\s+(\w+)/);
+  if (match) {
+    const col = match[1].toLowerCase();
+    taskType = 'delete_column';
+    queries.push(`ALTER TABLE employees DROP COLUMN IF EXISTS "${col}";`);
+    return { taskType, queries };
+  }
+
+  // Delete employee: "delete surya", "remove employee arun"
+  match = lp.match(/(?:delete|remove)\s+(?:employee|user|worker)?\s*(.+)/);
+  if (match) {
+    const val = match[1].trim();
+    taskType = 'delete_employee';
+    queries.push(`DELETE FROM employees WHERE name ILIKE '%${val}%' OR email ILIKE '%${val}%';`);
+    return { taskType, queries };
+  }
+
+  // Add employee: "add surya kumar", "create user rohan"
+  match = lp.match(/(?:add|create|new)\s+(?:employee|user|worker)?\s*(.+)/);
+  if (match) {
+    const name = match[1].trim().replace(/\b\w/g, c => c.toUpperCase());
+    const email = name.toLowerCase().replace(/\s+/g, '_') + '@ems.com';
+    taskType = 'insert_employee';
+    queries.push(`INSERT INTO employees ("name", "role", "email") VALUES ('${name}', 'Employee', '${email}');`);
+    return { taskType, queries };
+  }
+
+  return { taskType, queries };
+}
+
 // AI AGENT INTEGRATION (React <-> Python Swarm)
 app.post('/api/agent', (req, res) => {
   const { prompt } = req.body;
   if (!prompt) return res.status(400).json({ error: 'No prompt provided' });
 
-  console.log('\n🤖 Agent processing prompt:', prompt);
-  
   const pythonCommand = os.platform() === 'win32' ? 'python' : 'python3';
   const scriptPath = path.join(__dirname, '..', 'agents', 'system.py');
-  
-  execFile(pythonCommand, [scriptPath, prompt, process.env.GEMINI_API_KEY || ''], { env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, async (error, stdout, stderr) => {
-    if (error) {
-      if (pythonCommand === 'python3' && error.code === 'ENOENT') {
-        console.log('⚠️ python3 not found, falling back to python...');
-        return execFile('python', [scriptPath, prompt, process.env.GEMINI_API_KEY || ''], { env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, handleAgentResponse);
-      }
-      
-      console.error('Agent Execution Error:', error);
-      console.error('STDERR:', stderr);
-      console.error('STDOUT:', stdout);
-      return res.status(500).json({ error: 'AI Agent failed to execute', details: stderr || error.message });
-    }
-    
+
+  execFile(pythonCommand, [scriptPath, prompt, process.env.GEMINI_API_KEY || ''], { env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (error, stdout, stderr) => {
     handleAgentResponse(error, stdout, stderr);
   });
 
   async function handleAgentResponse(error, stdout, stderr) {
+    // If Python execution fails, use JS-based fallback
     if (error) {
-      console.error('Agent Fallback Execution Error:', error);
-      return res.status(500).json({ error: 'AI Agent fallback failed to execute', details: stderr || error.message });
+      console.error('🤖 Python Agent unavailable, using JS fallback. Error:', error.message);
+      try {
+        const { taskType, queries } = parseAgentTask(prompt);
+        if (DB_MODE !== 'simulation') {
+          for (let q of queries) {
+            console.log('⚡ Running DB Action via JS Agent:', q);
+            await pool.query(q);
+          }
+        }
+        return res.json({
+          status: 'success',
+          task: taskType,
+          queries: queries,
+          message: `AI Agent executed: ${taskType}`
+        });
+      } catch (fallbackErr) {
+        console.error('🤖 JS Agent fallback error:', fallbackErr);
+        return res.status(500).json({ error: 'Agent execution failed', details: fallbackErr.message });
+      }
     }
-    
-    console.log('Agent Raw Output:', stdout);
-    
+
+    console.log('🤖 Agent Raw Output:', stdout);
+
     try {
       const startTag = '---BEGIN_JSON---';
       const endTag = '---END_JSON---';
-      
+
       const startIndex = stdout.indexOf(startTag);
       const endIndex = stdout.indexOf(endTag);
-      
+
       if (startIndex !== -1 && endIndex !== -1) {
         const jsonStr = stdout.substring(startIndex + startTag.length, endIndex).trim();
         const payload = JSON.parse(jsonStr);
         const queries = payload.queries || [];
-        
+
         if (DB_MODE !== 'simulation') {
            for (let q of queries) {
              console.log('⚡ Running DB Migration/Action via Agent:', q);
@@ -135,8 +202,8 @@ app.post('/api/agent', (req, res) => {
         res.status(500).json({ error: 'Agent failed to emit final JSON. See console.' });
       }
     } catch(err) {
-      console.error('Agent parse error:', err);
-      res.status(500).json({ error: 'Agent parse failure', details: err.message });
+      console.error('🤖 Agent logic/parse error:', err);
+      res.status(500).json({ error: 'Agent execution/parse failure', details: err.message });
     }
   }
 });

@@ -10,7 +10,8 @@ import re
 
 # --- WINDOWS UTF-8 ENCODING ---
 if sys.platform == 'win32':
-    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+    import io
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', line_buffering=True)
 
 def agent_log(msg):
     print(msg, file=sys.stderr, flush=True)
@@ -173,9 +174,9 @@ def orchestrate(p, gk):
         "queries": memory.get("sql_queries"),
         "message": f"Hybrid AI Swarm successfully executed: {memory.get('task_type')}"
     }
-    sys.stdout.write("\n---BEGIN_JSON---\n")
-    sys.stdout.write(json.dumps(result))
-    sys.stdout.write("\n---END_JSON---\n")
+    print("\n---BEGIN_JSON---")
+    print(json.dumps(result))
+    print("---END_JSON---")
     sys.stdout.flush()
 
 if __name__ == "__main__":
