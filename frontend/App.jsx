@@ -3,6 +3,8 @@ import axios from 'axios';
 import Search from './components/Search/Search';
 import './index.css';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 const App = () => {
   const [employees, setEmployees] = useState([]);
   const [attendance, setAttendance] = useState([]);
@@ -13,10 +15,10 @@ const App = () => {
   const fetchEmployees = async () => {
     try {
       setLoading(true);
-      const resEmp = await axios.get('http://localhost:5000/api/employees');
+      const resEmp = await axios.get(`${API_URL}/api/employees`);
       setEmployees(Array.isArray(resEmp.data) ? resEmp.data : []);
       if (activeTab === 'attendance') {
-        const resAtt = await axios.get('http://localhost:5000/api/attendance');
+        const resAtt = await axios.get(`${API_URL}/api/attendance`);
         setAttendance(Array.isArray(resAtt.data) ? resAtt.data : []);
       }
       setLoading(false);
@@ -37,7 +39,7 @@ const App = () => {
   const saveEdit = async () => {
     try {
       const { id, ...updates } = editingEmp;
-      await axios.put(`http://localhost:5000/api/employees/${editingEmp.id}`, updates);
+      await axios.put(`${API_URL}/api/employees/${editingEmp.id}`, updates);
       setEditingEmp(null);
       fetchEmployees();
     } catch (err) {
@@ -49,7 +51,7 @@ const App = () => {
   const handleDelete = async (id) => {
     if (!window.confirm('Are you sure you want to delete this employee?')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/employees/${id}`);
+      await axios.delete(`${API_URL}/api/employees/${id}`);
       fetchEmployees();
     } catch (err) {
       console.error('Error deleting:', err);
@@ -59,7 +61,7 @@ const App = () => {
 
   const markAttendance = async (empId, status) => {
     try {
-      await axios.post('http://localhost:5000/api/attendance', { employee_id: empId, status });
+      await axios.post(`${API_URL}/api/attendance`, { employee_id: empId, status });
       // update local state to feel instant
       setAttendance(attendance.map(a => a.employee_id === empId ? { ...a, status } : a));
     } catch (err) {

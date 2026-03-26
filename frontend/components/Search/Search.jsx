@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import axios from 'axios';
 import './Search.css';
 
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+
 const PromptBox = ({ onAdd }) => {
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState('');
@@ -18,7 +20,7 @@ const PromptBox = ({ onAdd }) => {
     
     if (lowerPrompt.includes('add') || lowerPrompt.includes('delete') || lowerPrompt.includes('deploy') || lowerPrompt.includes('test')) {
       try {
-        const response = await axios.post('http://localhost:5000/api/agent', {
+        const response = await axios.post(`${API_URL}/api/agent`, {
           prompt: prompt
         });
         
