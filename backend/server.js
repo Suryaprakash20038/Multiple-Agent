@@ -11,6 +11,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 dotenv.config();
+ 
+// Prevent crash on unhandled errors
+process.on('uncaughtException', (err) => {
+  console.error('🔥 CRITICAL ERROR (Uncaught Exception):', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 CRITICAL ERROR (Unhandled Rejection):', reason);
+});
 
 const app = express();
 const port = process.env.PORT || 5000;
@@ -190,8 +198,8 @@ app.post('/api/agent', (req, res) => {
     console.log('🤖 Agent Raw Output:', stdout);
 
     try {
-      const startTag = '---BEGIN_JSON---';
-      const endTag = '---END_JSON---';
+      const startTag = '===AGENT_JSON_START===';
+      const endTag = '===AGENT_JSON_END===';
 
       const startIndex = stdout.indexOf(startTag);
       const endIndex = stdout.indexOf(endTag);
@@ -199,6 +207,7 @@ app.post('/api/agent', (req, res) => {
       if (startIndex !== -1 && endIndex !== -1) {
         const jsonStr = stdout.substring(startIndex + startTag.length, endIndex).trim();
         const payload = JSON.parse(jsonStr);
+        console.log('⚡ Agent Decoded Payload:', payload);
         const queries = payload.queries || [];
 
         if (DB_MODE !== 'simulation') {
