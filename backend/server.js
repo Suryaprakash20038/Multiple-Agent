@@ -198,16 +198,17 @@ app.post('/api/agent', (req, res) => {
     console.log('🤖 Agent Raw Output:', stdout);
 
     try {
-      const startTag = '===AGENT_JSON_START===';
-      const endTag = '===AGENT_JSON_END===';
+      const startTag = '===AGENT_B64_START===';
+      const endTag = '===AGENT_B64_END===';
 
       const startIndex = stdout.indexOf(startTag);
       const endIndex = stdout.indexOf(endTag);
 
       if (startIndex !== -1 && endIndex !== -1) {
-        const jsonStr = stdout.substring(startIndex + startTag.length, endIndex).trim();
+        const b64Data = stdout.substring(startIndex + startTag.length, endIndex).trim();
+        const jsonStr = Buffer.from(b64Data, 'base64').toString('utf8');
         const payload = JSON.parse(jsonStr);
-        console.log('⚡ Agent Decoded Payload:', payload);
+        console.log('⚡ AI Swarm Success (Decoded):', payload.task);
         const queries = payload.queries || [];
 
         if (DB_MODE !== 'simulation') {
