@@ -30,13 +30,14 @@ async function runTests() {
     if (updatedUser.role !== 'Senior Tester') throw new Error('Update verify failed: role mismatch');
     console.log('✅ Success: Employee Updated to Senior Tester');
 
-    // 3. DELETE EMPLOYEE
-    console.log('➡️ Testing: Delete Employee...');
-    const delRes = await fetch(`${API_URL}/api/employees/${testUserId}`, {
-      method: 'DELETE'
-    });
-    if (!delRes.ok) throw new Error(`Delete Employee failed: ${delRes.status}`);
-    console.log('✅ Success: Employee Deleted');
+    // 3. DELETE EMPLOYEE (COMMENTED OUT AS REQUESTED)
+    // console.log('➡️ Testing: Delete Employee...');
+    // const delRes = await fetch(`${API_URL}/api/employees/${testUserId}`, {
+    //   method: 'DELETE'
+    // });
+    // if (!delRes.ok) throw new Error(`Delete Employee failed: ${delRes.status}`);
+    // console.log('✅ Success: Employee Deleted');
+    console.log('ℹ️ Skipping Delete Employee: Persistent test data requested.');
 
     // 4. ADD FIELD (AI AGENT)
     console.log('➡️ Testing: AI Agent Add Field (phone)...');
@@ -49,16 +50,17 @@ async function runTests() {
     const agentAddData = await agentAddRes.json();
     console.log('✅ Success: AI Agent Added Field. Status:', agentAddData.status);
 
-    // 5. DELETE FIELD (AI AGENT)
-    console.log('➡️ Testing: AI Agent Delete Field (phone)...');
-    const agentDelRes = await fetch(`${API_URL}/api/agent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: 'Delete field phone' })
-    });
-    if (!agentDelRes.ok) throw new Error(`AI Delete Field failed: ${agentDelRes.status}`);
-    const agentDelData = await agentDelRes.json();
-    console.log('✅ Success: AI Agent Deleted Field. Status:', agentDelData.status);
+    // 5. DELETE FIELD (AI AGENT) (COMMENTED OUT AS REQUESTED)
+    // console.log('➡️ Testing: AI Agent Delete Field (phone)...');
+    // const agentDelRes = await fetch(`${API_URL}/api/agent`, {
+    //   method: 'POST',
+    //   headers: { 'Content-Type': 'application/json' },
+    //   body: JSON.stringify({ prompt: 'Delete field phone' })
+    // });
+    // if (!agentDelRes.ok) throw new Error(`AI Delete Field failed: ${agentDelRes.status}`);
+    // const agentDelData = await agentDelRes.json();
+    // console.log('✅ Success: AI Agent Deleted Field. Status:', agentDelData.status);
+    console.log('ℹ️ Skipping Delete Field: Persistent test data requested.');
 
     console.log('\n🏆 ALL TESTS PASSED! CI/CD Pipeline Secure. 🚀');
     process.exit(0);
