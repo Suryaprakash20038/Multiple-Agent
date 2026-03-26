@@ -137,6 +137,17 @@ function parseAgentTask(prompt) {
     return { taskType, queries };
   }
 
+  // Update employee: "update dhanesh dob-02/02/2003"
+  match = lp.match(/(?:update|modify|change)\s+(?:employee|user)?\s*(\w+)\s*(\w+)[\s:-]+(.+)/);
+  if (match) {
+    const name = match[1].trim();
+    const field = match[2].trim().toLowerCase();
+    const val = match[3].trim();
+    taskType = 'update_employee';
+    queries.push(`UPDATE employees SET "${field}" = '${val}' WHERE name ILIKE '%${name}%' OR email ILIKE '%${name}%';`);
+    return { taskType, queries };
+  }
+
   return { taskType, queries };
 }
 

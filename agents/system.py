@@ -67,14 +67,20 @@ class Planner:
              memory.set("task_data", {"delete_field": match.group(1)})
              return "coder"
 
+        # Update Employee: "Update Dhanesh dob-02/02/2003"
+        match = re.search(r'(?:update|modify|change)\s+(?:employee|user)?\s*(\w+)\s+(\w+)[\s:-]+(.+)', lp)
+        if match:
+             memory.set("task_type", "update_employee")
+             memory.set("task_data", {"name": match.group(1).title(), "field": match.group(2), "value": match.group(3).strip()})
+             return "coder"
+
         # Deploy: "Deploy to GitHub", "Push updates", etc.
         if "deploy" in lp or "github" in lp or "push" in lp:
              memory.set("task_type", "deploy")
              return "coder"
 
         # LAYER 2: AI BRAIN (Gemini)
-        sys_instr = """Strict JSON Output Only: {"task_type": "insert_employee|delete_employee", "data": {"name": "NAME", "role": "Employee"}, "delete_value": "NAME"}
-Respond ONLY with JSON."""
+        sys_instr = """Strict JSON Output Only: {"task_type": "insert_employee|delete_employee|update_employee|add_column|deploy", "delete_value": "NAME", "update_target": "NAME", "update_field": "FIELD", "update_value": "VALUE"}"""
         
         raw_res = ask_gemini(p, memory.get("keys")["gemini"], sys_instr)
         if raw_res:
@@ -83,7 +89,10 @@ Respond ONLY with JSON."""
                 if json_match:
                     data = json.loads(json_match.group())
                     memory.set("task_type", data.get("task_type", "unknown"))
-                    memory.set("task_data", data)
+                    if data.get("task_type") == "update_employee":
+                         memory.set("task_data", {"name": data.get("update_target"), "field": data.get("update_field"), "value": data.get("update_value")})
+                    else:
+                         memory.set("task_data", data)
                     if data.get("task_type") != "unknown": return "coder"
             except: pass
             
@@ -127,6 +136,12 @@ class Coder:
         elif tt == "delete_column":
             col = td.get("delete_field", "")
             if col: queries.append(f"ALTER TABLE employees DROP COLUMN IF EXISTS \"{col}\";")
+        elif tt == "update_employee":
+            name = td.get("name")
+            field = td.get("field", "").lower().replace(" ", "_").strip()
+            val = td.get("value")
+            if name and field and val:
+                queries.append(f"UPDATE employees SET \"{field}\" = '{val}' WHERE name ILIKE '%{name}%' OR email ILIKE '%{name}%';")
             
         memory.set("sql_queries", queries)
         return "tester"
