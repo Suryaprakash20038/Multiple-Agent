@@ -21,23 +21,51 @@ let mockEmployees = [
 let mockAttendance = [];
 
 const { Pool } = pg;
-const pool = new Pool({
-  user: process.env.DB_USER || 'postgres',
-  password: process.env.DB_PASSWORD || 'password',
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '5432'),
-  database: process.env.DB_NAME || 'ems_db',
-  connectionTimeoutMillis: 2000,
-});
+
+const isRender = !!process.env.RENDER;
+const poolConfig = isRender 
+  ? { connectionString: 'postgresql://ems_db_057s_user:P7IkoevWTDdp2hOWGnfkZwZ5GxswQKJK@dpg-d72aetc50q8c738m5oq0-a/ems_db_057s' }
+  : {
+      user: process.env.DB_USER || 'postgres',
+      password: process.env.DB_PASSWORD || 'bncmotors',
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '5432'),
+      database: process.env.DB_NAME || 'ems_db',
+      connectionTimeoutMillis: 2000,
+    };
+
+const pool = new Pool(poolConfig);
 
 // Test connection and auto-switch to Simulation Mode on failure
-pool.query('SELECT NOW()', (err, res) => {
+pool.query('SELECT NOW()', async (err, res) => {
   if (err) {
     DB_MODE = 'simulation';
     console.log('\n⚠️  PostgreSQL connection failed. Switching to [SIMULATION MODE] (In-Memory).');
     console.log('   (Your changes will only persist until the server restarts)\n');
   } else {
     console.log('✅ PostgreSQL connected successfully!');
+    if (isRender) {
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS employees (
+            id SERIAL PRIMARY KEY,
+            name VARCHAR(255) NOT NULL,
+            role VARCHAR(255) NOT NULL,
+            email VARCHAR(255) UNIQUE NOT NULL
+          );
+          CREATE TABLE IF NOT EXISTS attendance (
+            id SERIAL PRIMARY KEY,
+            employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
+            status VARCHAR(50) NOT NULL,
+            date DATE DEFAULT CURRENT_DATE,
+            UNIQUE(employee_id, date)
+          );
+        `);
+        console.log('✅ Auto-migration completed: Tables exist.');
+      } catch (e) {
+        console.error('⚠️ DB Auto-migration failed:', e);
+      }
+    }
   }
 });
 
