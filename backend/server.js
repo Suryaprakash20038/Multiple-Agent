@@ -168,6 +168,7 @@ app.post('/api/agent', (req, res) => {
   const scriptPath = path.join(__dirname, '..', 'agents', 'system.py');
 
   execFile(pythonCommand, [scriptPath, prompt, process.env.GEMINI_API_KEY || ''], { env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, (error, stdout, stderr) => {
+    if (stderr) console.error('🤖 Agent Telemetry (Stderr):\n', stderr);
     handleAgentResponse(error, stdout, stderr);
   });
 
