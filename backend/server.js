@@ -59,6 +59,9 @@ pool.query('SELECT NOW()', async (err, res) => {
   if (err) {
     DB_MODE = 'simulation';
     console.log('\n⚠️  PostgreSQL connection failed. Switching to [SIMULATION MODE] (In-Memory).');
+    console.log('   Error:', err.message);
+    console.log('   DATABASE_URL set:', !!process.env.DATABASE_URL);
+    console.log('   DB_HOST:', process.env.DB_HOST || 'not set');
     console.log('   (Your changes will only persist until the server restarts)\n');
   } else {
     console.log('✅ PostgreSQL connected successfully!');
