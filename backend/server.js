@@ -2,7 +2,13 @@ import express from 'express';
 import pg from 'pg';
 import cors from 'cors';
 import dotenv from 'dotenv';
-import { exec } from 'child_process';
+import { exec, execFile } from 'child_process';
+import os from 'os';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -78,16 +84,29 @@ app.post('/api/agent', (req, res) => {
 
   console.log('\n🤖 Agent processing prompt:', prompt);
   
-  const safePrompt = prompt.replace(/"/g, '\\"');
-  // Pass Prompt AND Gemini API Key to Python Agent
-  const pythonScript = `python agents/system.py "${safePrompt}" "${process.env.GEMINI_API_KEY || ''}"`;
+  const pythonCommand = os.platform() === 'win32' ? 'python' : 'python3';
+  const scriptPath = path.join(__dirname, '..', 'agents', 'system.py');
   
-  exec(pythonScript, { cwd: '../', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, async (error, stdout, stderr) => {
+  execFile(pythonCommand, [scriptPath, prompt, process.env.GEMINI_API_KEY || ''], { env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, async (error, stdout, stderr) => {
     if (error) {
+      if (pythonCommand === 'python3' && error.code === 'ENOENT') {
+        console.log('⚠️ python3 not found, falling back to python...');
+        return execFile('python', [scriptPath, prompt, process.env.GEMINI_API_KEY || ''], { env: { ...process.env, PYTHONIOENCODING: 'utf-8' } }, handleAgentResponse);
+      }
+      
       console.error('Agent Execution Error:', error);
       console.error('STDERR:', stderr);
       console.error('STDOUT:', stdout);
-      return res.status(500).json({ error: 'AI Agent failed to execute', details: stderr });
+      return res.status(500).json({ error: 'AI Agent failed to execute', details: stderr || error.message });
+    }
+    
+    handleAgentResponse(error, stdout, stderr);
+  });
+
+  async function handleAgentResponse(error, stdout, stderr) {
+    if (error) {
+      console.error('Agent Fallback Execution Error:', error);
+      return res.status(500).json({ error: 'AI Agent fallback failed to execute', details: stderr || error.message });
     }
     
     console.log('Agent Raw Output:', stdout);
@@ -119,7 +138,7 @@ app.post('/api/agent', (req, res) => {
       console.error('Agent parse error:', err);
       res.status(500).json({ error: 'Agent parse failure', details: err.message });
     }
-  });
+  }
 });
 
 // 1. ADD EMPLOYEE
