@@ -36,16 +36,20 @@ let mockAttendance = [];
 
 const { Pool } = pg;
 
-const isRender = !!process.env.RENDER;
-const poolConfig = isRender 
-  ? { connectionString: 'postgresql://ems_db_057s_user:P7IkoevWTDdp2hOWGnfkZwZ5GxswQKJK@dpg-d72aetc50q8c738m5oq0-a/ems_db_057s' }
+const isRender = !!process.env.RENDER || !!process.env.DATABASE_URL;
+const poolConfig = process.env.DATABASE_URL 
+  ? { 
+      connectionString: process.env.DATABASE_URL,
+      ssl: { rejectUnauthorized: false } 
+    }
   : {
       user: process.env.DB_USER || 'postgres',
       password: process.env.DB_PASSWORD || 'bncmotors',
       host: process.env.DB_HOST || 'localhost',
       port: parseInt(process.env.DB_PORT || '5432'),
       database: process.env.DB_NAME || 'ems_db',
-      connectionTimeoutMillis: 2000,
+      ssl: process.env.DB_HOST && process.env.DB_HOST !== 'localhost' ? { rejectUnauthorized: false } : false,
+      connectionTimeoutMillis: 5000,
     };
 
 const pool = new Pool(poolConfig);
