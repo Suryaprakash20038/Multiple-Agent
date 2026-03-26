@@ -18,7 +18,10 @@ const PromptBox = ({ onAdd }) => {
 
     const lowerPrompt = prompt.toLowerCase();
     
-    if (lowerPrompt.includes('add') || lowerPrompt.includes('delete') || lowerPrompt.includes('deploy') || lowerPrompt.includes('test')) {
+    const allowedKeywords = ['add', 'delete', 'remove', 'update', 'modify', 'change', 'deploy', 'test', 'field', 'column'];
+    const isAllowed = allowedKeywords.some(key => lowerPrompt.includes(key));
+    
+    if (isAllowed) {
       try {
         const response = await axios.post(`${API_URL}/api/agent`, {
           prompt: prompt
@@ -32,7 +35,7 @@ const PromptBox = ({ onAdd }) => {
         setStatus('❌ Agent Error: System failed to execute the task.');
       }
     } else {
-      setStatus('⚠️ Command not understood. Use "Add" or "Delete".');
+      setStatus('⚠️ Command not understood. Use keywords like "Add", "Update", or "Delete".');
     }
     
     setLoading(false);
