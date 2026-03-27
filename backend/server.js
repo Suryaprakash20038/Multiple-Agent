@@ -133,6 +133,28 @@ function parseAgentTask(prompt) {
     return { taskType, queries };
   }
 
+  // Show/List all employees
+  if (/(?:show|list|display|get|fetch|view)\s*(?:all)?\s*(?:employee|user|worker|staff|people|record|data|table)?s?/i.test(lp)) {
+    return { taskType: 'query_data', queries: ['SELECT * FROM employees ORDER BY id DESC;'] };
+  }
+
+  // Count employees
+  match = lp.match(/(?:how many|count|total)\s*(?:of\s+)?(.+)?/);
+  if (match) {
+    const filter = (match[1] || '').trim();
+    if (filter && !['employees','employee','people','users','all',''].includes(filter)) {
+      return { taskType: 'query_data', queries: [`SELECT COUNT(*) as count FROM employees WHERE role ILIKE '%${filter}%';`] };
+    }
+    return { taskType: 'query_data', queries: ['SELECT COUNT(*) as count FROM employees;'] };
+  }
+
+  // Search employees
+  match = lp.match(/(?:search|find|look\s*up|who is|where is)\s+(.+)/);
+  if (match) {
+    const term = match[1].trim();
+    return { taskType: 'query_data', queries: [`SELECT * FROM employees WHERE name ILIKE '%${term}%' OR email ILIKE '%${term}%' OR role ILIKE '%${term}%' ORDER BY id;`] };
+  }
+
   // Delete employee: "delete surya", "remove employee arun"
   match = lp.match(/(?:delete|remove)\s+(?:employee|user|worker)?\s*(.+)/);
   if (match) {
@@ -173,17 +195,22 @@ async function runJsFallback(prompt, res) {
     if (taskType === 'unknown' || queries.length === 0) {
       return res.status(400).json({ error: 'Could not understand the command. Try: add employee Name, delete Name, update Name field-value, add field fieldname' });
     }
+    let queryRows = [];
     if (DB_MODE !== 'simulation') {
       for (let q of queries) {
         console.log('⚡ Running DB Action via JS Agent:', q);
-        await pool.query(q);
+        const result = await pool.query(q);
+        if (q.trim().toUpperCase().startsWith('SELECT')) {
+          queryRows = result.rows;
+        }
       }
     }
     return res.json({
       status: 'success',
       task: taskType,
       queries: queries,
-      message: `AI Agent executed: ${taskType}`
+      message: `AI Agent executed: ${taskType}`,
+      query_rows: queryRows
     });
   } catch (fallbackErr) {
     console.error('🤖 JS Agent fallback error:', fallbackErr);
@@ -226,12 +253,17 @@ app.post('/api/agent', async (req, res) => {
       console.log('⚡ AI Swarm Success (Decoded):', payload.task);
       const queries = payload.queries || [];
 
+      let queryRows = [];
       if (DB_MODE !== 'simulation') {
         for (let q of queries) {
-          console.log('⚡ Running DB Migration/Action via Agent:', q);
-          await pool.query(q);
+          console.log('⚡ Running DB Action via Agent:', q);
+          const result = await pool.query(q);
+          if (q.trim().toUpperCase().startsWith('SELECT')) {
+            queryRows = result.rows;
+          }
         }
       }
+      payload.query_rows = queryRows.length > 0 ? queryRows : (payload.query_rows || []);
       return res.json(payload);
     } else {
       // Python ran but no valid output — use JS fallback
