@@ -118,6 +118,25 @@ pool.query('SELECT NOW()', async (err, res) => {
 
 // --- API ROUTES ---
 
+// --- SMART DATATYPE INFERENCE ---
+function inferDatatype(fieldName) {
+  const fn = fieldName.toLowerCase();
+  const integerFields = new Set(['salary','age','phone','mobile','contact','count','amount','quantity','year','number','zip','pincode']);
+  const decimalFields = new Set(['price','rate','percentage','gpa','cgpa','cost','fee','wage']);
+  const dateFields = new Set(['dob','date_of_birth','join_date','start_date','end_date','birth_date','hire_date']);
+  const booleanFields = new Set(['is_active','is_verified','status_flag','is_deleted','is_admin']);
+  const varcharFields = new Set(['email','name','address','description','notes','title','city','country']);
+
+  if (integerFields.has(fn) || fn.endsWith('_count') || fn.endsWith('_number')) return 'INTEGER';
+  if (decimalFields.has(fn) || fn.endsWith('_rate') || fn.endsWith('_price')) return 'DECIMAL';
+  if (dateFields.has(fn) || fn.endsWith('_date') || fn.startsWith('date_')) return 'DATE';
+  if (booleanFields.has(fn) || fn.startsWith('is_') || fn.startsWith('has_')) return 'BOOLEAN';
+  if (varcharFields.has(fn)) return 'VARCHAR(255)';
+  return 'TEXT';
+}
+
+const DATATYPE_ALIASES = { int: 'INTEGER', bool: 'BOOLEAN', float: 'DECIMAL', real: 'DECIMAL' };
+
 // --- JS-BASED AGENT LOGIC (fallback when Python is unavailable) ---
 function parseAgentTask(prompt) {
   const lp = prompt.toLowerCase().trim();
@@ -158,12 +177,14 @@ function parseAgentTask(prompt) {
     return { taskType: 'update_leave', queries: [`UPDATE leaves SET status = '${action}' WHERE status = 'Pending'${whereClause};`] };
   }
 
-  // Add column: "add field salary", "new column phone"
-  let match = lp.match(/(?:add|new|create)\s+(?:field|column)\s+(\w+)/);
+  // Add column: "add field salary", "add field salary INTEGER"
+  let match = lp.match(/(?:add|new|create)\s+(?:field|column)\s+(\w+)(?:\s+(integer|int|decimal|float|real|date|boolean|bool|varchar|text))?/);
   if (match) {
     const col = match[1].toLowerCase().replace(/\s+/g, '_');
+    const explicitType = match[2] ? (DATATYPE_ALIASES[match[2]] || match[2].toUpperCase()) : null;
+    const dtype = explicitType || inferDatatype(col);
     taskType = 'add_column';
-    queries.push(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS "${col}" TEXT;`);
+    queries.push(`ALTER TABLE employees ADD COLUMN IF NOT EXISTS "${col}" ${dtype};`);
     return { taskType, queries };
   }
 
@@ -207,25 +228,43 @@ function parseAgentTask(prompt) {
     return { taskType, queries };
   }
 
-  // Add employee: "add surya kumar", "create user rohan"
+  // Add employee: "add Surya" or "add Surya developer ssathis@gmail.com 2003-02-02 1234567899 25000"
   match = lp.match(/(?:add|create|new)\s+(?:employee|user|worker)?\s*(.+)/);
-  if (match) {
-    const name = match[1].trim().replace(/\b\w/g, c => c.toUpperCase());
-    const email = name.toLowerCase().replace(/\s+/g, '_') + '@ems.com';
+  if (match && !lp.includes('field') && !lp.includes('column') && !lp.includes('page') && !lp.includes('leave')) {
+    const parts = match[1].trim().split(/\s+/);
+    const name = parts[0].charAt(0).toUpperCase() + parts[0].slice(1);
+    const cols = ['name', 'role', 'email'];
+    let role = 'Employee', email = name.toLowerCase() + '@ems.com';
+    const extraCols = [], extraVals = [];
+    for (let i = 1; i < parts.length; i++) {
+      const v = parts[i];
+      if (v.includes('@') && v.includes('.')) { email = v; }
+      else if (/^\d{4}-\d{2}-\d{2}$/.test(v)) { extraCols.push('"dob"'); extraVals.push(`'${v}'`); }
+      else if (/^\d{10}$/.test(v)) { extraCols.push('"phone"'); extraVals.push(`'${v}'`); }
+      else if (/^\d+$/.test(v) && v.length <= 8) { extraCols.push('"salary"'); extraVals.push(`'${v}'`); }
+      else { role = v.charAt(0).toUpperCase() + v.slice(1); }
+    }
+    const allCols = [...cols, ...extraCols].join(', ');
+    const allVals = [`'${name}'`, `'${role}'`, `'${email}'`, ...extraVals].join(', ');
     taskType = 'insert_employee';
-    queries.push(`INSERT INTO employees ("name", "role", "email") VALUES ('${name}', 'Employee', '${email}');`);
+    queries.push(`INSERT INTO employees (${allCols}) VALUES (${allVals});`);
     return { taskType, queries };
   }
 
-  // Update employee: "update dhanesh dob-02/02/2003"
-  match = lp.match(/(?:update|modify|change)\s+(?:employee|user)?\s*(\w+)\s*(\w+)[\s:-]+(.+)/);
+  // Update employee: "update Surya phone 123 salary 50000 dob 2003-02-02"
+  match = lp.match(/(?:update|modify|change)\s+(?:employee|user)?\s*(\w+)\s+(.+)/);
   if (match) {
     const name = match[1].trim();
-    const field = match[2].trim().toLowerCase();
-    const val = match[3].trim();
-    taskType = 'update_employee';
-    queries.push(`UPDATE employees SET "${field}" = '${val}' WHERE name ILIKE '%${name}%' OR email ILIKE '%${name}%';`);
-    return { taskType, queries };
+    const rest = match[2].replace(/ to /g, ' ').replace(/ = /g, ' ').trim().split(/\s+/);
+    const setParts = [];
+    for (let i = 0; i < rest.length - 1; i += 2) {
+      setParts.push(`"${rest[i]}" = '${rest[i + 1]}'`);
+    }
+    if (setParts.length > 0) {
+      taskType = 'update_employee';
+      queries.push(`UPDATE employees SET ${setParts.join(', ')} WHERE name ILIKE '%${name}%' OR email ILIKE '%${name}%';`);
+      return { taskType, queries };
+    }
   }
 
   return { taskType, queries };
