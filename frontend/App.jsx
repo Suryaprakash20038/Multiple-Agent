@@ -8,9 +8,12 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 const App = () => {
   const [employees, setEmployees] = useState([]);
   const [attendance, setAttendance] = useState([]);
+  const [leaves, setLeaves] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingEmp, setEditingEmp] = useState(null);
   const [activeTab, setActiveTab] = useState('employees');
+  const [leaveForm, setLeaveForm] = useState({ employee_id: '', leave_type: 'Casual', start_date: '', end_date: '', reason: '' });
+  const [showLeaveForm, setShowLeaveForm] = useState(false);
 
   const fetchEmployees = async () => {
     try {
@@ -20,6 +23,10 @@ const App = () => {
       if (activeTab === 'attendance') {
         const resAtt = await axios.get(`${API_URL}/api/attendance`);
         setAttendance(Array.isArray(resAtt.data) ? resAtt.data : []);
+      }
+      if (activeTab === 'leaves') {
+        const resLeaves = await axios.get(`${API_URL}/api/leaves`);
+        setLeaves(Array.isArray(resLeaves.data) ? resLeaves.data : []);
       }
       setLoading(false);
     } catch (err) {
@@ -70,46 +77,133 @@ const App = () => {
     }
   };
 
-  const columns = employees.length > 0 
-    ? Object.keys(employees[0]) 
+  const applyLeave = async () => {
+    if (!leaveForm.employee_id || !leaveForm.start_date || !leaveForm.end_date) {
+      alert('Please select employee, start date and end date');
+      return;
+    }
+    try {
+      await axios.post(`${API_URL}/api/leaves`, leaveForm);
+      setLeaveForm({ employee_id: '', leave_type: 'Casual', start_date: '', end_date: '', reason: '' });
+      setShowLeaveForm(false);
+      fetchEmployees();
+    } catch (err) {
+      console.error('Error applying leave:', err);
+      alert('Failed to apply leave');
+    }
+  };
+
+  const updateLeaveStatus = async (leaveId, status) => {
+    try {
+      await axios.put(`${API_URL}/api/leaves/${leaveId}`, { status });
+      setLeaves(leaves.map(l => l.id === leaveId ? { ...l, status } : l));
+    } catch (err) {
+      console.error('Error updating leave:', err);
+      alert('Failed to update leave status');
+    }
+  };
+
+  const deleteLeave = async (leaveId) => {
+    if (!window.confirm('Delete this leave request?')) return;
+    try {
+      await axios.delete(`${API_URL}/api/leaves/${leaveId}`);
+      setLeaves(leaves.filter(l => l.id !== leaveId));
+    } catch (err) {
+      console.error('Error deleting leave:', err);
+      alert('Failed to delete leave');
+    }
+  };
+
+  const columns = employees.length > 0
+    ? Object.keys(employees[0])
     : ['id', 'name', 'role', 'email'];
 
   return (
     <div className="App">
+      <div className="bg-blobs">
+        <div className="blob blob-1"></div>
+        <div className="blob blob-2"></div>
+        <div className="blob blob-3"></div>
+      </div>
+      
+      <button 
+        className="theme-toggle" 
+        onClick={() => {
+          const newTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          localStorage.setItem('ems-theme', newTheme);
+        }}
+      >
+        {document.documentElement.getAttribute('data-theme') === 'dark' ? '☀️' : '🌙'}
+      </button>
+
       <div className="container">
         <header className="main-header">
-          <h1>Employee Management System</h1>
-          <p>AI-Powered HR Automation & Tracking</p>
+          <h1>EMS Dashboard</h1>
+          <p style={{ color: 'var(--secondary-text)', fontWeight: '500', fontSize: '1.1rem' }}>
+            Next-Gen HR Suite & AI Intelligence
+          </p>
         </header>
 
         {activeTab === 'employees' && <Search onAdd={fetchEmployees} />}
 
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', justifyContent: 'center' }}>
-          <button 
-            className={`tab-btn ${activeTab === 'employees' ? 'active-tab' : ''}`}
-            onClick={() => setActiveTab('employees')}
-            style={{ padding: '0.6rem 2rem', borderRadius: '8px', cursor: 'pointer', border: 'none', background: activeTab === 'employees' ? 'var(--accent-color)' : 'var(--card-bg)', color: activeTab === 'employees' ? 'white' : 'var(--text-color)', fontWeight: 'bold' }}>
-            Employee Table
-          </button>
-          <button 
-            className={`tab-btn ${activeTab === 'attendance' ? 'active-tab' : ''}`}
-            onClick={() => setActiveTab('attendance')}
-            style={{ padding: '0.6rem 2rem', borderRadius: '8px', cursor: 'pointer', border: 'none', background: activeTab === 'attendance' ? 'var(--accent-color)' : 'var(--card-bg)', color: activeTab === 'attendance' ? 'white' : 'var(--text-color)', fontWeight: 'bold' }}>
-            Today's Attendance
-          </button>
+        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2.5rem', justifyContent: 'center' }}>
+          {[
+            { id: 'employees', label: 'Employee Hub', icon: '👥' },
+            { id: 'attendance', label: 'Attendance', icon: '📅' },
+            { id: 'leaves', label: 'Leave Manager', icon: '🏖️' },
+            { id: 'payroll', label: 'Payroll (Beta)', icon: '💰' }
+          ].map(tab => (
+            <button
+              key={tab.id}
+              className={`tab-btn ${activeTab === tab.id ? 'active-tab' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+              style={{ 
+                padding: '0.8rem 1.8rem', 
+                borderRadius: '16px', 
+                cursor: 'pointer', 
+                transition: 'all 0.3s ease',
+                background: activeTab === tab.id ? '#4f46e5' : 'var(--card-bg)', 
+                color: activeTab === tab.id ? 'white' : 'var(--text-color)',
+                border: activeTab === tab.id ? '1px solid #4f46e5' : 'var(--glass-border)',
+                backdropFilter: 'blur(10px)',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.6rem',
+                boxShadow: activeTab === tab.id ? '0 8px 20px rgba(79, 70, 229, 0.3)' : 'none'
+              }}>
+              <span>{tab.icon}</span> {tab.label}
+            </button>
+          ))}
         </div>
 
         <div className="dashboard-grid">
           <div className="card full-width">
-            <h2>{activeTab === 'employees' ? 'Employee Directory' : 'Daily Attendance Tracker'}</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <h2 style={{ margin: 0, fontSize: '1.8rem', fontWeight: '700' }}>
+                {activeTab === 'employees' ? 'Staff Directory' : activeTab === 'attendance' ? 'Daily Attendance' : activeTab === 'leaves' ? 'Leave Management' : 'Payroll Management'}
+              </h2>
+              {activeTab === 'payroll' && (
+                <button className="att-btn" style={{ background: '#4f46e5', color: 'white' }}>Generate Payouts</button>
+              )}
+              {activeTab === 'leaves' && (
+                <span style={{ fontSize: '0.9rem', color: 'var(--secondary-text)' }}>
+                  {leaves.filter(l => l.status === 'Pending').length} pending requests
+                </span>
+              )}
+            </div>
             
             {loading ? (
-              <p>Loading data...</p>
+              <div style={{ textAlign: 'center', padding: '4rem' }}>
+                <div className="loader"></div>
+                <p style={{ marginTop: '1rem', color: 'var(--secondary-text)' }}>Syncing with AI Cluster...</p>
+              </div>
             ) : activeTab === 'employees' ? (
               // EMPLOYEE TABLE
               !Array.isArray(employees) || employees.length === 0 ? (
-                <p style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
-                  No employees found. Try using the AI prompt to add one!
+                <p style={{ textAlign: 'center', padding: '4rem', color: 'var(--secondary-text)', fontSize: '1.1rem' }}>
+                  No records active. Use the AI prompt to initialize staff.
                 </p>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
@@ -117,7 +211,7 @@ const App = () => {
                     <thead>
                       <tr>
                         {columns.map(col => (
-                          <th key={col} style={{ textTransform: 'capitalize' }}>{col.replace('_', ' ')}</th>
+                          <th key={col}>{col.replace('_', ' ')}</th>
                         ))}
                         <th>Actions</th>
                       </tr>
@@ -126,12 +220,24 @@ const App = () => {
                       {employees.map(emp => (
                         <tr key={emp.id}>
                           {columns.map(col => (
-                            <td key={col}>{emp[col] || '-'}</td>
+                            <td key={col}>
+                              {col === 'email' ? (
+                                <span style={{ opacity: 0.8, fontSize: '0.9rem' }}>{emp[col]}</span>
+                              ) : col === 'role' ? (
+                                <span style={{ 
+                                  padding: '4px 10px', background: 'rgba(79, 70, 229, 0.1)', 
+                                  color: '#4f46e5', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600'
+                                }}>
+                                  {emp[col]}
+                                </span>
+                              ) : emp[col] || '-'}
+                            </td>
                           ))}
                           <td>
-                            <button className="edit-btn" onClick={() => setEditingEmp(emp)}>Edit</button>
-                            <button className="att-btn" style={{ marginLeft: '0.5rem', background: '#fee2e2', color: '#dc2626', border: '1px solid #f87171' }} onClick={() => handleDelete(emp.id)}>Delete</button>
-                            <button className="att-btn" style={{ marginLeft: '0.5rem' }} onClick={() => setActiveTab('attendance')}>Mark Att</button>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button className="edit-btn" onClick={() => setEditingEmp(emp)}>Edit</button>
+                              <button className="att-btn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }} onClick={() => handleDelete(emp.id)}>Delete</button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -139,41 +245,42 @@ const App = () => {
                   </table>
                 </div>
               )
-            ) : (
+            ) : activeTab === 'attendance' ? (
               // ATTENDANCE TABLE
               !Array.isArray(attendance) || attendance.length === 0 ? (
-                <p style={{ textAlign: 'center', padding: '2rem', color: '#64748b' }}>
-                  No employees found to mark attendance.
+                <p style={{ textAlign: 'center', padding: '4rem', color: 'var(--secondary-text)' }}>
+                  No attendance data for today.
                 </p>
               ) : (
                 <div style={{ overflowX: 'auto' }}>
                   <table className="employee-table">
                     <thead>
                       <tr>
-                        <th>ID</th>
-                        <th>Name</th>
+                        <th>Employee</th>
+                        <th>Position</th>
                         <th>Status</th>
-                        <th>Quick Action</th>
+                        <th>Activity</th>
                       </tr>
                     </thead>
                     <tbody>
                       {attendance.map(att => (
                         <tr key={att.employee_id}>
-                          <td>{att.employee_id}</td>
-                          <td style={{ fontWeight: 'bold' }}>{att.name}</td>
+                          <td style={{ fontWeight: '600' }}>{att.name}</td>
+                          <td>{att.role || 'Employee'}</td>
                           <td>
                             <span style={{ 
-                              padding: '0.3rem 0.8rem', borderRadius: '20px', fontSize: '0.85rem', fontWeight: 'bold',
-                              background: att.status === 'Present' ? '#dcfce7' : att.status === 'Absent' ? '#fee2e2' : att.status === 'Half-Day' ? '#fef3c7' : '#f1f5f9',
-                              color: att.status === 'Present' ? '#166534' : att.status === 'Absent' ? '#991b1b' : att.status === 'Half-Day' ? '#92400e' : '#475569'
+                              padding: '0.4rem 1rem', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '700',
+                              background: att.status === 'Present' ? 'rgba(34, 197, 94, 0.15)' : att.status === 'Absent' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                              color: att.status === 'Present' ? '#10b981' : att.status === 'Absent' ? '#ef4444' : '#f59e0b'
                             }}>
-                              {att.status || 'Not Marked'}
+                              {att.status || 'Pending'}
                             </span>
                           </td>
-                          <td style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button className="att-btn" style={{ background: '#22c55e', color: 'white', border: 'none' }} onClick={() => markAttendance(att.employee_id, 'Present')}>Present</button>
-                            <button className="att-btn" style={{ background: '#ef4444', color: 'white', border: 'none' }} onClick={() => markAttendance(att.employee_id, 'Absent')}>Absent</button>
-                            <button className="att-btn" style={{ background: '#f59e0b', color: 'white', border: 'none' }} onClick={() => markAttendance(att.employee_id, 'Half-Day')}>Half-Day</button>
+                          <td>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button className="att-btn" onClick={() => markAttendance(att.employee_id, 'Present')}>Present</button>
+                              <button className="att-btn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444' }} onClick={() => markAttendance(att.employee_id, 'Absent')}>Absent</button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -181,6 +288,187 @@ const App = () => {
                   </table>
                 </div>
               )
+            ) : activeTab === 'leaves' ? (
+              // LEAVE MANAGEMENT
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
+                  <button
+                    className="att-btn"
+                    style={{ background: '#4f46e5', color: 'white', border: 'none', padding: '0.7rem 1.5rem', borderRadius: '12px', fontWeight: '600', cursor: 'pointer' }}
+                    onClick={() => setShowLeaveForm(!showLeaveForm)}
+                  >
+                    {showLeaveForm ? 'Cancel' : '+ Apply Leave'}
+                  </button>
+                </div>
+
+                {showLeaveForm && (
+                  <div style={{
+                    background: 'var(--card-bg)', backdropFilter: 'blur(14px)', border: 'var(--glass-border)',
+                    borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem',
+                    display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem'
+                  }}>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.85rem', color: 'var(--secondary-text)', fontWeight: '600' }}>Employee</label>
+                      <select
+                        value={leaveForm.employee_id}
+                        onChange={(e) => setLeaveForm({ ...leaveForm, employee_id: e.target.value })}
+                        style={{ width: '100%', padding: '0.6rem', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-color)', borderRadius: '8px' }}
+                      >
+                        <option value="">Select Employee</option>
+                        {employees.map(emp => (
+                          <option key={emp.id} value={emp.id}>{emp.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.85rem', color: 'var(--secondary-text)', fontWeight: '600' }}>Leave Type</label>
+                      <select
+                        value={leaveForm.leave_type}
+                        onChange={(e) => setLeaveForm({ ...leaveForm, leave_type: e.target.value })}
+                        style={{ width: '100%', padding: '0.6rem', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-color)', borderRadius: '8px' }}
+                      >
+                        <option value="Casual">Casual Leave</option>
+                        <option value="Sick">Sick Leave</option>
+                        <option value="Earned">Earned Leave</option>
+                        <option value="Maternity">Maternity Leave</option>
+                        <option value="Paternity">Paternity Leave</option>
+                        <option value="Unpaid">Unpaid Leave</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.85rem', color: 'var(--secondary-text)', fontWeight: '600' }}>Start Date</label>
+                      <input
+                        type="date" value={leaveForm.start_date}
+                        onChange={(e) => setLeaveForm({ ...leaveForm, start_date: e.target.value })}
+                        style={{ width: '100%', padding: '0.6rem', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-color)', borderRadius: '8px' }}
+                      />
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.85rem', color: 'var(--secondary-text)', fontWeight: '600' }}>End Date</label>
+                      <input
+                        type="date" value={leaveForm.end_date}
+                        onChange={(e) => setLeaveForm({ ...leaveForm, end_date: e.target.value })}
+                        style={{ width: '100%', padding: '0.6rem', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-color)', borderRadius: '8px' }}
+                      />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1' }}>
+                      <label style={{ display: 'block', marginBottom: '0.3rem', fontSize: '0.85rem', color: 'var(--secondary-text)', fontWeight: '600' }}>Reason</label>
+                      <input
+                        type="text" value={leaveForm.reason} placeholder="Optional reason..."
+                        onChange={(e) => setLeaveForm({ ...leaveForm, reason: e.target.value })}
+                        style={{ width: '100%', padding: '0.6rem', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-color)', borderRadius: '8px' }}
+                      />
+                    </div>
+                    <div style={{ gridColumn: '1 / -1', textAlign: 'right' }}>
+                      <button
+                        onClick={applyLeave}
+                        style={{ padding: '0.7rem 2rem', background: '#4f46e5', color: 'white', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer' }}
+                      >
+                        Submit Leave Request
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!Array.isArray(leaves) || leaves.length === 0 ? (
+                  <p style={{ textAlign: 'center', padding: '4rem', color: 'var(--secondary-text)', fontSize: '1.1rem' }}>
+                    No leave requests yet. Click "+ Apply Leave" to create one.
+                  </p>
+                ) : (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="employee-table">
+                      <thead>
+                        <tr>
+                          <th>Employee</th>
+                          <th>Type</th>
+                          <th>From</th>
+                          <th>To</th>
+                          <th>Days</th>
+                          <th>Reason</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {leaves.map(leave => {
+                          const days = Math.ceil((new Date(leave.end_date) - new Date(leave.start_date)) / (1000 * 60 * 60 * 24)) + 1;
+                          return (
+                            <tr key={leave.id}>
+                              <td style={{ fontWeight: '600' }}>{leave.employee_name}</td>
+                              <td>
+                                <span style={{
+                                  padding: '4px 10px', borderRadius: '8px', fontSize: '0.85rem', fontWeight: '600',
+                                  background: leave.leave_type === 'Sick' ? 'rgba(239, 68, 68, 0.1)' : leave.leave_type === 'Earned' ? 'rgba(245, 158, 11, 0.1)' : 'rgba(79, 70, 229, 0.1)',
+                                  color: leave.leave_type === 'Sick' ? '#ef4444' : leave.leave_type === 'Earned' ? '#f59e0b' : '#4f46e5'
+                                }}>
+                                  {leave.leave_type}
+                                </span>
+                              </td>
+                              <td>{new Date(leave.start_date).toLocaleDateString()}</td>
+                              <td>{new Date(leave.end_date).toLocaleDateString()}</td>
+                              <td style={{ fontWeight: '700' }}>{days}</td>
+                              <td style={{ opacity: 0.8, fontSize: '0.9rem' }}>{leave.reason || '-'}</td>
+                              <td>
+                                <span style={{
+                                  padding: '0.4rem 1rem', borderRadius: '12px', fontSize: '0.8rem', fontWeight: '700',
+                                  background: leave.status === 'Approved' ? 'rgba(34, 197, 94, 0.15)' : leave.status === 'Rejected' ? 'rgba(239, 68, 68, 0.15)' : 'rgba(245, 158, 11, 0.15)',
+                                  color: leave.status === 'Approved' ? '#10b981' : leave.status === 'Rejected' ? '#ef4444' : '#f59e0b'
+                                }}>
+                                  {leave.status}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                  {leave.status === 'Pending' && (
+                                    <>
+                                      <button className="att-btn" onClick={() => updateLeaveStatus(leave.id, 'Approved')}>Approve</button>
+                                      <button className="att-btn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }} onClick={() => updateLeaveStatus(leave.id, 'Rejected')}>Reject</button>
+                                    </>
+                                  )}
+                                  <button className="att-btn" style={{ background: 'rgba(239, 68, 68, 0.1)', color: '#ef4444', border: '1px solid rgba(239, 68, 68, 0.2)' }} onClick={() => deleteLeave(leave.id)}>Delete</button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+            ) : (
+              // PAYROLL TABLE (Demo)
+              <div style={{ overflowX: 'auto' }}>
+                <table className="employee-table">
+                  <thead>
+                    <tr>
+                      <th>Name</th>
+                      <th>Base Salary</th>
+                      <th>Bonus</th>
+                      <th>Deductions</th>
+                      <th>Net Pay</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {employees.map(emp => (
+                      <tr key={emp.id}>
+                        <td style={{ fontWeight: '600' }}>{emp.name}</td>
+                        <td>${emp.salary || '5,000'}</td>
+                        <td style={{ color: '#10b981' }}>+$250</td>
+                        <td style={{ color: '#ef4444' }}>-$120</td>
+                        <td style={{ fontWeight: '700' }}>${(parseFloat(emp.salary?.replace(',','') || 5000) + 130).toLocaleString()}</td>
+                        <td>
+                          <span style={{ 
+                            padding: '4px 10px', background: 'rgba(34, 197, 94, 0.1)', color: '#10b981', 
+                            borderRadius: '8px', fontSize: '0.8rem', fontWeight: '700' 
+                          }}>Processed</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             )}
           </div>
         </div>
@@ -218,6 +506,7 @@ const App = () => {
           </div>
         </div>
       )}
+
     </div>
   );
 };

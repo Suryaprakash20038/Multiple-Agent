@@ -60,7 +60,28 @@ jobs:
           npm start &
           sleep 5
           
-      - name: Run Full Lifecycle Automated Tests
+      - name: ✅ Step 1: Run API Integration Test
+        env:
+          DB_USER: postgres
+          DB_PASSWORD: password
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: ems_db
+        run: |
+          cd backend
+          node integration.test.js
+          echo "### 📡 Integration Test" >> $GITHUB_STEP_SUMMARY
+          echo "✅ API Connectivity is Healthy" >> $GITHUB_STEP_SUMMARY
+
+      - name: ✅ Step 2: Run Full Lifecycle Automated Tests
+        env:
+          DB_USER: postgres
+          DB_PASSWORD: password
+          DB_HOST: localhost
+          DB_PORT: 5432
+          DB_NAME: ems_db
         run: |
           cd backend
           node automated_tests.js
+          echo "### 🚀 Automated Testing" >> $GITHUB_STEP_SUMMARY
+          echo "✅ Employee Add/Update/Field Cycle Passed" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,313 @@
+<mxfile host="app.diagrams.net" modified="2026-03-26T00:00:00.000Z" agent="Claude" version="21.0.0">
+  <diagram id="multi-agent-architecture" name="Multi-Agent System Architecture">
+    <mxGraphModel dx="1800" dy="1000" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1800" pageHeight="2200" math="0" shadow="1">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ==================== TITLE ==================== -->
+        <mxCell id="title" value="AI Multi-Agent Employee Management System" style="text;html=1;fontSize=28;fontStyle=1;align=center;fontColor=#1a1a2e;fontFamily=Inter;" vertex="1" parent="1">
+          <mxGeometry x="350" y="20" width="700" height="40" as="geometry" />
+        </mxCell>
+        <mxCell id="subtitle" value="Each Agent Powered by a Different AI  |  Planner (Gemini) → Coder (Claude) → Tester (GPT) → DevOps (Git)" style="text;html=1;fontSize=13;fontStyle=0;align=center;fontColor=#666;" vertex="1" parent="1">
+          <mxGeometry x="300" y="55" width="800" height="25" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== USER ==================== -->
+        <mxCell id="user" value="👤 User" style="shape=ellipse;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;fontSize=16;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="620" y="100" width="120" height="60" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== FRONTEND ==================== -->
+        <mxCell id="fe-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#9c27b0;strokeWidth=2;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="300" y="200" width="780" height="130" as="geometry" />
+        </mxCell>
+        <mxCell id="fe-label" value="FRONTEND — React 19 + Vite 8  (localhost:5173)" style="text;html=1;fontSize=15;fontStyle=1;align=center;fontColor=#6a1b9a;" vertex="1" parent="1">
+          <mxGeometry x="460" y="205" width="460" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="fe-app" value="📄 App.jsx&lt;br&gt;&lt;br&gt;Employee Table&lt;br&gt;Attendance Tab&lt;br&gt;Edit Modal / CRUD" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9c27b0;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="330" y="240" width="160" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="fe-search" value="🔍 Search.jsx&lt;br&gt;&lt;br&gt;AI Prompt Box&lt;br&gt;Keyword Validation&lt;br&gt;POST /api/agent" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f9a825;strokeWidth=2;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="520" y="240" width="160" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="fe-css" value="🎨 Styling&lt;br&gt;&lt;br&gt;index.css / App.css&lt;br&gt;Search.css&lt;br&gt;CSS Variables" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9c27b0;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="710" y="240" width="150" height="75" as="geometry" />
+        </mxCell>
+        <mxCell id="fe-main" value="⚛️ main.jsx&lt;br&gt;&lt;br&gt;Entry Point&lt;br&gt;StrictMode" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#9c27b0;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="890" y="240" width="120" height="75" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: User → Frontend -->
+        <mxCell id="a-user-fe" style="rounded=1;strokeColor=#9c27b0;strokeWidth=2;" edge="1" parent="1" source="user" target="fe-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-user-fe-l" value="Types prompt" style="edgeLabel;html=1;fontSize=10;fontColor=#666;" vertex="1" connectable="0" parent="a-user-fe">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== BACKEND ==================== -->
+        <mxCell id="be-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d32;strokeWidth=2;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="300" y="390" width="780" height="150" as="geometry" />
+        </mxCell>
+        <mxCell id="be-label" value="BACKEND — Node.js + Express 4  (localhost:5000)  |  server.js" style="text;html=1;fontSize=15;fontStyle=1;align=center;fontColor=#1b5e20;" vertex="1" parent="1">
+          <mxGeometry x="430" y="395" width="530" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="be-rest" value="🔗 REST API&lt;br&gt;&lt;br&gt;GET/POST /employees&lt;br&gt;PUT/DELETE /employees/:id&lt;br&gt;GET/POST /attendance" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="330" y="430" width="180" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="be-agent" value="🤖 POST /api/agent&lt;br&gt;&lt;br&gt;1. Receive prompt&lt;br&gt;2. execFile(python)&lt;br&gt;3. Decode Base64&lt;br&gt;4. Execute SQL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff9c4;strokeColor=#f9a825;strokeWidth=2;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="540" y="430" width="170" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="be-fallback" value="🔄 JS Fallback&lt;br&gt;&lt;br&gt;parseAgentTask()&lt;br&gt;When Python fails&lt;br&gt;Regex-based parser" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffcdd2;strokeColor=#c62828;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="740" y="430" width="150" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="be-dual" value="💾 Dual Mode&lt;br&gt;&lt;br&gt;PostgreSQL&lt;br&gt;or Simulation&lt;br&gt;(auto-fallback)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffffff;strokeColor=#2e7d32;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="920" y="430" width="130" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: Frontend → Backend -->
+        <mxCell id="a-fe-be" style="rounded=1;strokeColor=#f9a825;strokeWidth=3;" edge="1" parent="1" source="fe-search" target="be-agent">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-fe-be-l" value="Axios POST&#xa;/api/agent" style="edgeLabel;html=1;fontSize=10;fontColor=#f57f17;fontStyle=1;" vertex="1" connectable="0" parent="a-fe-be">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== PYTHON-NODE BRIDGE ==================== -->
+        <mxCell id="bridge" value="📡 Python ↔ Node.js Bridge  |  execFile() → stdout: ===AGENT_B64_START===base64json===AGENT_B64_END===" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#c62828;strokeWidth=2;fontSize=11;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="340" y="580" width="700" height="35" as="geometry" />
+        </mxCell>
+        <mxCell id="a-be-bridge" style="rounded=1;strokeColor=#c62828;strokeWidth=2;" edge="1" parent="1" source="be-agent" target="bridge">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== AGENT SWARM CONTAINER ==================== -->
+        <mxCell id="swarm-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff8e1;strokeColor=#e65100;strokeWidth=3;arcSize=6;" vertex="1" parent="1">
+          <mxGeometry x="100" y="660" width="1200" height="700" as="geometry" />
+        </mxCell>
+        <mxCell id="swarm-title" value="🐍 AI AGENT SWARM — agents/system.py  |  Multi-Agent Orchestration Pipeline" style="text;html=1;fontSize=16;fontStyle=1;align=center;fontColor=#e65100;" vertex="1" parent="1">
+          <mxGeometry x="300" y="670" width="800" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: Bridge → Swarm -->
+        <mxCell id="a-bridge-swarm" style="rounded=1;strokeColor=#e65100;strokeWidth=3;" edge="1" parent="1" source="bridge" target="swarm-box">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="690" y="650" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ==================== SHARED MEMORY ==================== -->
+        <mxCell id="memory-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ffe0b2;strokeColor=#e65100;strokeWidth=2;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="470" y="710" width="460" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="memory-title" value="📦 SHARED MEMORY (HybridMemory) — All agents read/write here" style="text;html=1;fontSize=12;fontStyle=1;align=center;fontColor=#e65100;" vertex="1" parent="1">
+          <mxGeometry x="490" y="715" width="420" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="memory-content" value="prompt: &quot;add employee Surya Kumar&quot;&#xa;task_type: &quot;insert_employee&quot;         ← Set by Planner&#xa;sql_queries: [&quot;INSERT INTO...&quot;]      ← Set by Coder&#xa;test_passed: true                     ← Set by Tester&#xa;task_data: {name: &quot;Surya Kumar&quot;}     ← Set by Planner&#xa;ai_agents_used: [...]                 ← Tracks AI usage" style="text;html=1;fontSize=10;align=left;fontColor=#333;fontFamily=Courier New;spacingLeft=10;" vertex="1" parent="1">
+          <mxGeometry x="480" y="738" width="440" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== ORCHESTRATOR ==================== -->
+        <mxCell id="orch-box" value="🔄 ORCHESTRATOR:  curr = &quot;planner&quot;  →  while curr != &quot;finish&quot;: curr = agents[curr].execute(memory)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff3e0;strokeColor=#e65100;strokeWidth=2;fontSize=11;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="300" y="840" width="800" height="30" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== AGENT 1: PLANNER (GEMINI) ==================== -->
+        <mxCell id="planner-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1565c0;strokeWidth=3;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="140" y="900" width="280" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="planner-title" value="🧠 AGENT 1: PLANNER" style="text;html=1;fontSize=14;fontStyle=1;align=center;fontColor=#0d47a1;" vertex="1" parent="1">
+          <mxGeometry x="175" y="908" width="210" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="planner-ai" value="⚡ Powered by Google Gemini" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#4285f4;strokeColor=none;fontColor=#ffffff;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="170" y="935" width="220" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="planner-detail" value="Job: Understand user intent&#xa;&#xa;Layer 1: Regex patterns (fast)&#xa;  &quot;add field X&quot; → add_column&#xa;  &quot;delete X&quot;    → delete_employee&#xa;  &quot;update X Y&quot;  → update_employee&#xa;&#xa;Layer 2: Gemini AI (complex)&#xa;  Sends prompt → gets JSON&#xa;&#xa;Layer 3: Fallback regex" style="text;html=1;fontSize=10;align=left;fontColor=#333;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="150" y="965" width="250" height="145" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== AGENT 2: CODER (CLAUDE) ==================== -->
+        <mxCell id="coder-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#ad1457;strokeWidth=3;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="460" y="900" width="280" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="coder-title" value="👨‍💻 AGENT 2: CODER" style="text;html=1;fontSize=14;fontStyle=1;align=center;fontColor=#880e4f;" vertex="1" parent="1">
+          <mxGeometry x="505" y="908" width="190" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="coder-ai" value="⚡ Powered by Anthropic Claude" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d97706;strokeColor=none;fontColor=#ffffff;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="490" y="935" width="220" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="coder-detail" value="Job: Generate SQL queries&#xa;&#xa;Sends task to Claude API:&#xa;  &quot;Generate PostgreSQL for&#xa;   insert_employee...&quot;&#xa;&#xa;Claude returns raw SQL:&#xa;  INSERT INTO employees&#xa;  (&quot;name&quot;,&quot;role&quot;,&quot;email&quot;)&#xa;  VALUES ('Surya'...)&#xa;&#xa;Fallback: Local SQL generator" style="text;html=1;fontSize=10;align=left;fontColor=#333;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="470" y="965" width="260" height="145" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== AGENT 3: TESTER (GPT) ==================== -->
+        <mxCell id="tester-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d32;strokeWidth=3;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="780" y="900" width="280" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="tester-title" value="🧪 AGENT 3: TESTER" style="text;html=1;fontSize=14;fontStyle=1;align=center;fontColor=#1b5e20;" vertex="1" parent="1">
+          <mxGeometry x="825" y="908" width="190" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="tester-ai" value="⚡ Powered by OpenAI GPT" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#10a37f;strokeColor=none;fontColor=#ffffff;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="810" y="935" width="220" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="tester-detail" value="Job: Validate SQL &amp; run tests&#xa;&#xa;Sends SQL to GPT:&#xa;  &quot;Validate this SQL...&#xa;   check syntax, safety&quot;&#xa;&#xa;GPT returns:&#xa;  {valid: true, reason: &quot;...&quot;}&#xa;&#xa;For deploy tasks:&#xa;  Run integration.test.js&#xa;  Run automated_tests.js" style="text;html=1;fontSize=10;align=left;fontColor=#333;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="790" y="965" width="260" height="145" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== AGENT 4: DEVOPS ==================== -->
+        <mxCell id="devops-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#ede7f6;strokeColor=#4527a0;strokeWidth=3;arcSize=10;" vertex="1" parent="1">
+          <mxGeometry x="470" y="1160" width="280" height="160" as="geometry" />
+        </mxCell>
+        <mxCell id="devops-title" value="⚙️ AGENT 4: DEVOPS" style="text;html=1;fontSize=14;fontStyle=1;align=center;fontColor=#311b92;" vertex="1" parent="1">
+          <mxGeometry x="515" y="1168" width="190" height="22" as="geometry" />
+        </mxCell>
+        <mxCell id="devops-ai" value="⚡ Git CLI (No AI needed)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#5e35b1;strokeColor=none;fontColor=#ffffff;fontSize=11;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="500" y="1195" width="220" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="devops-detail" value="Job: Push to GitHub&#xa;&#xa;Only for &quot;deploy&quot; + tests passed:&#xa;  git add .&#xa;  git commit -m &quot;AI Swarm Push&quot;&#xa;  git push&#xa;&#xa;Skipped for non-deploy tasks" style="text;html=1;fontSize=10;align=left;fontColor=#333;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="480" y="1225" width="260" height="90" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== AGENT FLOW ARROWS ==================== -->
+        <!-- Planner → Coder -->
+        <mxCell id="a-p-c" value="" style="rounded=1;strokeColor=#e65100;strokeWidth=4;endArrow=blockThin;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="planner-box" target="coder-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-p-c-l" value="returns&#xa;&quot;coder&quot;" style="edgeLabel;html=1;fontSize=11;fontColor=#e65100;fontStyle=1;" vertex="1" connectable="0" parent="a-p-c">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Coder → Tester -->
+        <mxCell id="a-c-t" value="" style="rounded=1;strokeColor=#e65100;strokeWidth=4;endArrow=blockThin;endFill=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="coder-box" target="tester-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-c-t-l" value="returns&#xa;&quot;tester&quot;" style="edgeLabel;html=1;fontSize=11;fontColor=#e65100;fontStyle=1;" vertex="1" connectable="0" parent="a-c-t">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Tester → DevOps -->
+        <mxCell id="a-t-d" value="" style="rounded=1;strokeColor=#e65100;strokeWidth=4;endArrow=blockThin;endFill=1;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=1;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="tester-box" target="devops-box">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="920" y="1140" />
+              <mxPoint x="750" y="1140" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a-t-d-l" value="returns &quot;devops&quot;" style="edgeLabel;html=1;fontSize=11;fontColor=#e65100;fontStyle=1;" vertex="1" connectable="0" parent="a-t-d">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- DevOps → Finish -->
+        <mxCell id="finish" value="✅ FINISH&#xa;Loop Ends" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8eaf6;strokeColor=#283593;strokeWidth=3;fontSize=14;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="540" y="1350" width="140" height="45" as="geometry" />
+        </mxCell>
+        <mxCell id="a-d-f" value="returns &quot;finish&quot;" style="rounded=1;strokeColor=#283593;strokeWidth=3;endArrow=blockThin;endFill=1;fontSize=11;fontColor=#283593;fontStyle=1;" edge="1" parent="1" source="devops-box" target="finish">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== MEMORY DASHED ARROWS ==================== -->
+        <mxCell id="a-mem-p" value="read/write" style="rounded=1;strokeColor=#ff9800;strokeWidth=1;dashed=1;fontSize=9;fontColor=#e65100;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="memory-box" target="planner-box">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="400" y="790" />
+              <mxPoint x="280" y="790" />
+              <mxPoint x="280" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="a-mem-c" value="read/write" style="rounded=1;strokeColor=#ff9800;strokeWidth=1;dashed=1;fontSize=9;fontColor=#e65100;" edge="1" parent="1" source="memory-box" target="coder-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="a-mem-t" value="read/write" style="rounded=1;strokeColor=#ff9800;strokeWidth=1;dashed=1;fontSize=9;fontColor=#e65100;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="memory-box" target="tester-box">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="1000" y="790" />
+              <mxPoint x="920" y="870" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+
+        <!-- ==================== EXTERNAL AI CLOUDS ==================== -->
+        <mxCell id="cloud-gemini" value="☁️ Google&#xa;Gemini API&#xa;gemini-2.0-flash" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#e3f2fd;strokeColor=#1565c0;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="130" y="1140" width="150" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="a-p-gemini" style="rounded=1;strokeColor=#1565c0;strokeWidth=2;dashed=1;endArrow=blockThin;endFill=1;" edge="1" parent="1" source="planner-box" target="cloud-gemini">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cloud-claude" value="☁️ Anthropic&#xa;Claude API&#xa;claude-sonnet-4" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#fce4ec;strokeColor=#ad1457;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="310" y="1180" width="150" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="a-c-claude" style="rounded=1;strokeColor=#ad1457;strokeWidth=2;dashed=1;endArrow=blockThin;endFill=1;exitX=0.25;exitY=1;exitDx=0;exitDy=0;" edge="1" parent="1" source="coder-box" target="cloud-claude">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <mxCell id="cloud-gpt" value="☁️ OpenAI&#xa;GPT API&#xa;gpt-4o-mini" style="shape=cloud;whiteSpace=wrap;html=1;fillColor=#e8f5e9;strokeColor=#2e7d32;fontSize=10;fontStyle=1;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1050" y="1140" width="150" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="a-t-gpt" style="rounded=1;strokeColor=#2e7d32;strokeWidth=2;dashed=1;endArrow=blockThin;endFill=1;" edge="1" parent="1" source="tester-box" target="cloud-gpt">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== DATABASE ==================== -->
+        <mxCell id="db-box" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e8eaf6;strokeColor=#283593;strokeWidth=2;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="340" y="1440" width="720" height="110" as="geometry" />
+        </mxCell>
+        <mxCell id="db-title" value="🗄️ DATABASE — PostgreSQL 14 (Render.com)" style="text;html=1;fontSize=15;fontStyle=1;align=center;fontColor=#283593;" vertex="1" parent="1">
+          <mxGeometry x="470" y="1448" width="460" height="25" as="geometry" />
+        </mxCell>
+        <mxCell id="db-emp" value="📋 employees&#xa;id | name | role | email&#xa;+ dynamic AI columns" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=8;fillColor=#ffffff;strokeColor=#283593;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="420" y="1478" width="190" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="db-att" value="📋 attendance&#xa;id | employee_id | date | status&#xa;UNIQUE(emp_id, date)" style="shape=cylinder3;whiteSpace=wrap;html=1;boundedLbl=1;backgroundOutline=1;size=8;fillColor=#ffffff;strokeColor=#283593;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="680" y="1478" width="200" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="a-fk" value="FK" style="rounded=1;strokeColor=#283593;strokeWidth=1;dashed=1;fontSize=9;fontColor=#283593;" edge="1" parent="1" source="db-att" target="db-emp">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- Arrow: Finish → Database -->
+        <mxCell id="a-finish-db" value="SQL executed by&#xa;server.js → pool.query()" style="rounded=1;strokeColor=#283593;strokeWidth=3;endArrow=blockThin;endFill=1;fontSize=10;fontColor=#283593;fontStyle=1;" edge="1" parent="1" source="finish" target="db-box">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== CI/CD ==================== -->
+        <mxCell id="cicd" value="⚡ CI/CD — GitHub Actions&#xa;&#xa;Push → Build → Test → Deploy&#xa;.github/workflows/main.yml" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f3e5f5;strokeColor=#6a1b9a;strokeWidth=2;fontSize=11;align=center;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="1440" width="200" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- ==================== LEGEND ==================== -->
+        <mxCell id="legend" value="" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fafafa;strokeColor=#ccc;strokeWidth=1;" vertex="1" parent="1">
+          <mxGeometry x="1120" y="670" width="170" height="180" as="geometry" />
+        </mxCell>
+        <mxCell id="legend-t" value="LEGEND" style="text;html=1;fontSize=13;fontStyle=1;align=center;fontColor=#333;" vertex="1" parent="1">
+          <mxGeometry x="1155" y="678" width="100" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="l1" value="🟣 Frontend (React)" style="text;html=1;fontSize=10;align=left;fontColor=#9c27b0;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="705" width="150" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="l2" value="🟢 Backend (Express)" style="text;html=1;fontSize=10;align=left;fontColor=#2e7d32;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="725" width="150" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="l3" value="🟠 Agent Swarm (Python)" style="text;html=1;fontSize=10;align=left;fontColor=#e65100;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="745" width="150" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="l4" value="🔵 Planner → Gemini" style="text;html=1;fontSize=10;align=left;fontColor=#1565c0;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="765" width="150" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="l5" value="🔴 Coder → Claude" style="text;html=1;fontSize=10;align=left;fontColor=#ad1457;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="785" width="150" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="l6" value="🟩 Tester → OpenAI GPT" style="text;html=1;fontSize=10;align=left;fontColor=#2e7d32;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="805" width="150" height="18" as="geometry" />
+        </mxCell>
+        <mxCell id="l7" value="🟪 DevOps → Git CLI" style="text;html=1;fontSize=10;align=left;fontColor=#4527a0;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="825" width="150" height="18" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
