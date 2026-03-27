@@ -65,9 +65,8 @@ pool.query('SELECT NOW()', async (err, res) => {
     console.log('   (Your changes will only persist until the server restarts)\n');
   } else {
     console.log('✅ PostgreSQL connected successfully!');
-    if (isRender) {
-      try {
-        await pool.query(`
+    try {
+      await pool.query(`
           CREATE TABLE IF NOT EXISTS employees (
             id SERIAL PRIMARY KEY,
             name VARCHAR(255) NOT NULL,
@@ -98,12 +97,22 @@ pool.query('SELECT NOW()', async (err, res) => {
             date DATE DEFAULT CURRENT_DATE,
             UNIQUE(employee_id, date)
           );
+
+          CREATE TABLE IF NOT EXISTS leaves (
+            id SERIAL PRIMARY KEY,
+            employee_id INTEGER REFERENCES employees(id) ON DELETE CASCADE,
+            leave_type VARCHAR(50) NOT NULL DEFAULT 'Casual',
+            start_date DATE NOT NULL,
+            end_date DATE NOT NULL,
+            reason TEXT,
+            status VARCHAR(20) NOT NULL DEFAULT 'Pending',
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+          );
         `);
         console.log('✅ Auto-migration completed: Tables exist.');
       } catch (e) {
         console.error('⚠️ DB Auto-migration failed:', e);
       }
-    }
   }
 });
 
@@ -114,6 +123,40 @@ function parseAgentTask(prompt) {
   const lp = prompt.toLowerCase().trim();
   let taskType = 'unknown';
   let queries = [];
+
+  // Apply leave: "apply leave for Surya for 3 days", "apply 5 days sick leave for Arun"
+  if (lp.includes('leave') && /(?:apply|request|grant|give|mark|submit)/.test(lp)) {
+    const nameMatch = lp.match(/(?:for|to)\s+([a-zA-Z]+)/);
+    const daysMatch = lp.match(/(\d+)\s*(?:day|days)/);
+    const typeMatch = lp.match(/(sick|casual|earned|maternity|paternity|unpaid)\s*(?:leave)?/);
+    let empName = nameMatch ? nameMatch[1].charAt(0).toUpperCase() + nameMatch[1].slice(1) : 'Employee';
+    const skipWords = ['sick','casual','earned','maternity','paternity','unpaid','leave','days','day'];
+    if (skipWords.includes(empName.toLowerCase())) {
+      const allFors = [...lp.matchAll(/(?:for|to)\s+([a-zA-Z]+)/g)];
+      empName = allFors.map(m => m[1]).find(n => !skipWords.includes(n.toLowerCase()));
+      empName = empName ? empName.charAt(0).toUpperCase() + empName.slice(1) : 'Employee';
+    }
+    const numDays = daysMatch ? parseInt(daysMatch[1]) : 1;
+    const leaveType = typeMatch ? typeMatch[1].charAt(0).toUpperCase() + typeMatch[1].slice(1) : 'Casual';
+    return { taskType: 'apply_leave', queries: [`INSERT INTO leaves (employee_id, leave_type, start_date, end_date, reason) SELECT id, '${leaveType}', CURRENT_DATE, CURRENT_DATE + INTERVAL '${numDays - 1} days', 'Applied via AI Agent' FROM employees WHERE name ILIKE '%${empName}%' LIMIT 1;`] };
+  }
+
+  // Show leaves: "show leaves", "pending leaves", "list all leaves"
+  if (lp.includes('leave') && /(?:show|list|view|display|get|fetch|pending|all|approved|rejected)/.test(lp)) {
+    const statusMatch = lp.match(/(pending|approved|rejected)/);
+    const filter = statusMatch ? ` WHERE l.status = '${statusMatch[1].charAt(0).toUpperCase() + statusMatch[1].slice(1)}'` : '';
+    return { taskType: 'query_leaves', queries: [`SELECT l.*, e.name as employee_name FROM leaves l JOIN employees e ON l.employee_id = e.id${filter} ORDER BY l.applied_at DESC;`] };
+  }
+
+  // Approve/Reject leave: "approve leave for Surya", "reject Arun leave"
+  if (lp.includes('leave') && /(?:approve|reject|cancel)/.test(lp)) {
+    const action = lp.includes('approve') ? 'Approved' : lp.includes('reject') ? 'Rejected' : 'Cancelled';
+    let empMatch = lp.match(/(?:for|of)\s+([a-zA-Z]+)/);
+    if (!empMatch) empMatch = lp.match(/(?:approve|reject|cancel)\s+([a-zA-Z]+)/);
+    const empName = empMatch && !['leave','the','all'].includes(empMatch[1].toLowerCase()) ? empMatch[1] : null;
+    const whereClause = empName ? ` AND employee_id IN (SELECT id FROM employees WHERE name ILIKE '%${empName}%')` : '';
+    return { taskType: 'update_leave', queries: [`UPDATE leaves SET status = '${action}' WHERE status = 'Pending'${whereClause};`] };
+  }
 
   // Add column: "add field salary", "new column phone"
   let match = lp.match(/(?:add|new|create)\s+(?:field|column)\s+(\w+)/);
@@ -402,6 +445,85 @@ app.post('/api/attendance', async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+// ========== LEAVE MANAGEMENT API ==========
+
+// 7. GET ALL LEAVES (with employee names)
+app.get('/api/leaves', async (req, res) => {
+  if (DB_MODE === 'simulation') {
+    return res.json([]);
+  }
+  try {
+    const result = await pool.query(`
+      SELECT l.*, e.name as employee_name, e.role as employee_role
+      FROM leaves l
+      JOIN employees e ON l.employee_id = e.id
+      ORDER BY l.applied_at DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error('Fetch leaves error:', err);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+// 8. APPLY FOR LEAVE
+app.post('/api/leaves', async (req, res) => {
+  const { employee_id, leave_type, start_date, end_date, reason } = req.body;
+  if (!employee_id || !start_date || !end_date) {
+    return res.status(400).json({ error: 'employee_id, start_date, end_date required' });
+  }
+  if (DB_MODE === 'simulation') {
+    return res.status(201).json({ id: 1, ...req.body, status: 'Pending' });
+  }
+  try {
+    const result = await pool.query(
+      'INSERT INTO leaves (employee_id, leave_type, start_date, end_date, reason) VALUES ($1, $2, $3, $4, $5) RETURNING *',
+      [employee_id, leave_type || 'Casual', start_date, end_date, reason || '']
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Apply leave error:', err);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+// 9. UPDATE LEAVE STATUS (Approve/Reject)
+app.put('/api/leaves/:id', async (req, res) => {
+  const { id } = req.params;
+  const { status } = req.body;
+  if (!status) return res.status(400).json({ error: 'status required' });
+  if (DB_MODE === 'simulation') {
+    return res.json({ id, status });
+  }
+  try {
+    const result = await pool.query(
+      'UPDATE leaves SET status = $1 WHERE id = $2 RETURNING *',
+      [status, id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Leave not found' });
+    res.json(result.rows[0]);
+  } catch (err) {
+    console.error('Update leave error:', err);
+    res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+// 10. DELETE LEAVE
+app.delete('/api/leaves/:id', async (req, res) => {
+  const { id } = req.params;
+  if (DB_MODE === 'simulation') {
+    return res.json({ success: true });
+  }
+  try {
+    const result = await pool.query('DELETE FROM leaves WHERE id = $1 RETURNING *', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Leave not found' });
+    res.json({ success: true, deleted: result.rows[0] });
+  } catch (err) {
+    console.error('Delete leave error:', err);
     res.status(500).json({ error: 'DB Error' });
   }
 });
