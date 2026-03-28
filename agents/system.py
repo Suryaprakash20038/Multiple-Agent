@@ -126,10 +126,17 @@ class Planner:
             agent_log("   ✅ Matched: create_image")
             return "creative"
 
+        # 0.05 Deploy / Push to GitHub (MUST be before travel check)
+        if "deploy" in lp or "push" in lp or ("github" in lp and "push" not in lp):
+            if "page" not in lp and "employee" not in lp:
+                memory.set("task_type", "deploy")
+                agent_log("   ✅ Matched: deploy")
+                memory.log_ai("Planner", "Regex")
+                return "coder"
+
         # 0.1 Travel Detection (Fast Regex)
-        if re.search(r'\b(trip|travel|plan|planning|itinerary|budget|vacation|holiday|tour|to|from)\b', lp):
-            # Only trigger if it's likely a travel request and not just a 'new page' create
-            if "page" not in lp and "tab" not in lp and "employee" not in lp:
+        if re.search(r'\b(trip|travel|planning|itinerary|budget|vacation|holiday|tour)\b', lp):
+            if "page" not in lp and "tab" not in lp and "employee" not in lp and "deploy" not in lp:
                 memory.set("task_type", "trip_plan")
                 agent_log("   ✅ Matched: trip_plan (Regex)")
                 return "travel"
@@ -283,9 +290,6 @@ class Planner:
         if lp == "test" or "run test" in lp:
             memory.set("task_type", "test")
             return "tester"
-        if "deploy" in lp or "github" in lp or "push" in lp:
-            memory.set("task_type", "deploy")
-            return "coder"
 
 
         # 8. Show/Query (Fast Detection)
