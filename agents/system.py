@@ -24,15 +24,25 @@ def agent_log(msg):
 def ask_gemini(prompt, api_key, system_instruction):
     """Call Gemini API with a specific role/system instruction."""
     if not api_key: return None
+    import time
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key={api_key}"
     body = {"contents": [{"role": "user", "parts": [{"text": f"{system_instruction}\n\nPrompt: {prompt}"}]}]}
-    try:
-        req = urllib.request.Request(url, data=json.dumps(body).encode('utf-8'), headers={'Content-Type': 'application/json'})
-        with urllib.request.urlopen(req, timeout=15) as response:
-            data = json.loads(response.read().decode())
-            return data['candidates'][0]['content']['parts'][0]['text']
-    except Exception as e:
-        agent_log(f"  [Gemini API Error] {e}")
+    for attempt in range(3):
+        try:
+            req = urllib.request.Request(url, data=json.dumps(body).encode('utf-8'), headers={'Content-Type': 'application/json'})
+            with urllib.request.urlopen(req, timeout=30) as response:
+                data = json.loads(response.read().decode())
+                return data['candidates'][0]['content']['parts'][0]['text']
+        except urllib.error.HTTPError as e:
+            if e.code in (429, 503) and attempt < 2:
+                wait = (attempt + 1) * 3
+                agent_log(f"  [Gemini {e.code}] Waiting {wait}s before retry {attempt+2}/3...")
+                time.sleep(wait)
+                continue
+            agent_log(f"  [Gemini API Error] {e}")
+        except Exception as e:
+            agent_log(f"  [Gemini API Error] {e}")
+        break
     return None
 
 # ============================================================
