@@ -5,6 +5,7 @@ import subprocess
 import sys
 import io
 import urllib.request
+import urllib.parse
 import base64
 import re
 
@@ -23,7 +24,7 @@ def agent_log(msg):
 def ask_gemini(prompt, api_key, system_instruction):
     """Call Gemini API with a specific role/system instruction."""
     if not api_key: return None
-    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={api_key}"
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key={api_key}"
     body = {"contents": [{"role": "user", "parts": [{"text": f"{system_instruction}\n\nPrompt: {prompt}"}]}]}
     try:
         req = urllib.request.Request(url, data=json.dumps(body).encode('utf-8'), headers={'Content-Type': 'application/json'})
@@ -118,6 +119,32 @@ class Planner:
 
         # LAYER 1: REGEX HEURISTICS (Fast, no API call - Fixes 429 error for basic tasks)
         agent_log("   Layer 1: Regex patterns...")
+
+        # 0. Creative & Communication Tasks (Highest Priority for General Mode)
+        if re.search(r'\b(draw|paint|sketch|generate|create|make)\b', lp) and re.search(r'\b(image|picture|photo|dog|cat|landscape|vision|art|painting|drawing|scenery)\b', lp):
+            memory.set("task_type", "create_image")
+            agent_log("   ✅ Matched: create_image")
+            return "creative"
+
+        # 0.1 Travel Detection (Fast Regex)
+        if re.search(r'\b(trip|travel|plan|planning|itinerary|budget|vacation|holiday|tour|to|from)\b', lp):
+            # Only trigger if it's likely a travel request and not just a 'new page' create
+            if "page" not in lp and "tab" not in lp and "employee" not in lp:
+                memory.set("task_type", "trip_plan")
+                agent_log("   ✅ Matched: trip_plan (Regex)")
+                return "travel"
+        
+        if "video" in lp and ("create" in lp or "generate" in lp or "make" in lp):
+            memory.set("task_type", "create_video")
+            agent_log("   ✅ Matched: create_video")
+            return "creative"
+
+        if ("mail" in lp or "email" in lp) and "@" in lp:
+            email_match = re.search(r'[\w\.-]+@[\w\.-]+\.\w+', lp)
+            memory.set("task_type", "send_email")
+            memory.set("task_data", {"to": email_match.group(0) if email_match else "unknown", "subject": "Automated AI Message"})
+            agent_log("   ✅ Matched: send_email")
+            return "mail"
 
         # 0. Leave Management: "Apply leave for Surya for 3 days", "Apply 5 days sick leave for Arun"
         # Pattern: apply/request leave [for] <name> [for] <N> days
@@ -260,14 +287,15 @@ class Planner:
             memory.set("task_type", "deploy")
             return "coder"
 
+
         # 8. Show/Query (Fast Detection)
         if re.search(r'\b(?:show|list|display|get|fetch|view|how many|count|total|search|find|who is|where is|details of)\b', lp):
             memory.set("task_type", "query_data")
             agent_log("   ✅ Matched: query_data (Regex)")
 
-        # LAYER 2: GEMINI AS INTENT CLASSIFIER (Advanced Routing)
-        agent_log("   Layer 2: Asking Gemini (Semantic Router role)...")
-        router_prompt = "Identify task: insert_employee, delete_employee, update_employee, add_column, delete_column, query_data, apply_leave (apply/request leave for someone), query_leaves (show/list leaves), update_leave (approve/reject leave), deploy, code_edit (for UI changes/new pages), general_chat. Return ONLY JSON."
+        # LAYER 2: GEMINI AS INTENT CLASSIFIER (Advanced Autonomous Router)
+        agent_log("   Layer 2: Asking Gemini 3 (Autonomous Decision)...")
+        router_prompt = "You are a master orchestrator. Analyze user request. Decide task_type: \n- 'create_image': If prompt describes visual/art.\n- 'trip_plan': If it's a travel/trip/vacation request (e.g., 'A to B budget X').\n- 'database_work', 'code_edit', 'send_email', 'general_chat'. \nReturn ONLY JSON."
 
         raw_res = ask_gemini(p, memory.get("gemini_key"), router_prompt)
         if raw_res:
@@ -280,8 +308,11 @@ class Planner:
                     memory.set("task_data", data)
                     agent_log(f"   ✅ Gemini routed to: {task}")
                     memory.log_ai("Planner", "Semantic Router")
+                    if task in ["create_image", "create_video"]: return "creative"
+                    if task == "trip_plan": return "travel"
+                    if task == "send_email": return "mail"
                     if task == "general_chat":
-                        chat_res = ask_gemini(p, memory.get("gemini_key"), "Helpful HR AI. Answer concisely.")
+                        chat_res = ask_gemini(p, memory.get("gemini_key"), "You are a versatile AI assistant. Analyze the prompt and provide a helpful, relevant response.")
                         memory.set("chat_response", chat_res)
                         return "finish"
                     return "coder"
@@ -594,38 +625,49 @@ class DevOps:
         return "finish"
 
 # ============================================================
-#  ORCHESTRATOR — Single LLM, Multiple Agents
+#  GENERAL MODE AGENTS (Imported from general_agents.py)
+# ============================================================
+from general_agents import run_general_mode
+
+# ============================================================
+#  ORCHESTRATOR — Unified Entry Point
 # ============================================================
 
-def orchestrate(p, gk):
+def orchestrate(p, gk, mode='query'):
     agent_log("\n" + "=" * 60)
-    agent_log("🚀 MULTI-AGENT SWARM (Single LLM: Gemini)")
+    agent_log("🚀 MULTI-AGENT SWARM (Brain: Gemini)")
     agent_log("=" * 60)
     agent_log(f"🔑 Gemini API Key: {'✅ Loaded' if gk else '❌ Missing'}")
     agent_log(f"📝 Prompt: '{p}'")
-    agent_log(f"🤖 Architecture: 1 LLM (Gemini) → 4 Agents (different roles)")
+    agent_log(f"🤖 Mode: {mode.upper()}")
 
     memory = HybridMemory(p, gk)
-    agents = {"planner": Planner(), "coder": Coder(), "tester": Tester(), "devops": DevOps()}
-    curr = "planner"
 
-    try:
-        while curr != "finish":
-            curr = agents[curr].execute(memory)
-    except Exception as e:
-        agent_log(f"[Loop Error] {e}")
+    if mode == 'general':
+        # GENERAL MODE: Pure AI orchestration — Gemini decides everything
+        agent_log("🧠 Architecture: Gemini Brain → 6 Agents (Chat, Image, Video, Email, WhatsApp, Search)")
+        run_general_mode(memory)
+    else:
+        # QUERY MODE: DB/Code operations — unchanged
+        agent_log("🤖 Architecture: Planner → Coder → Tester → DevOps")
+        agents = {"planner": Planner(), "coder": Coder(), "tester": Tester(), "devops": DevOps()}
+        curr = "planner"
+        try:
+            while curr != "finish":
+                curr = agents[curr].execute(memory)
+        except Exception as e:
+            agent_log(f"[Loop Error] {e}")
 
     # Summary
     agent_log(f"\n{'='*60}")
     agent_log("📊 AGENT EXECUTION SUMMARY")
     agent_log(f"{'='*60}")
-    agent_log("   LLM Used    → Google Gemini (gemini-2.0-flash)")
     for entry in memory.get("ai_agents_used", []):
         agent_log(f"   {entry['agent']:12s} → {entry['ai']}")
     agent_log(f"   {'Result':12s} → {memory.get('task_type')} | {'✅ Success' if memory.get('test_passed') else '❌ Failed'}")
     agent_log(f"{'='*60}\n")
 
-    time.sleep(1)
+    time.sleep(0.5)
 
     task_type = memory.get("task_type")
     test_passed = memory.get("test_passed")
@@ -637,6 +679,9 @@ def orchestrate(p, gk):
     elif task_type == "test" and not test_passed:
         tr = memory.get("test_results", {})
         msg = f"Some Tests Failed ❌ ({tr.get('failed', 0)} failed, {tr.get('passed', 0)} passed)"
+    elif mode == 'general':
+        agents_list = [e['agent'] for e in memory.get("ai_agents_used", [])]
+        msg = f"AI Agents executed: {', '.join(agents_list)}"
     else:
         msg = f"Multi-Agent AI Swarm executed: {task_type}"
 
@@ -648,6 +693,9 @@ def orchestrate(p, gk):
         "details": memory.get("devops_output", ""),
         "agents_used": memory.get("ai_agents_used", []),
         "test_results": memory.get("test_results"),
+        "image_result": memory.get("image_result"),
+        "video_result": memory.get("video_result"),
+        "video_type": memory.get("video_type", "mp4"),
         "query_rows": [],
         "chat_response": memory.get("chat_response", "")
     }
@@ -659,4 +707,7 @@ def orchestrate(p, gk):
 
 if __name__ == "__main__":
     if len(sys.argv) < 3: sys.exit(1)
-    orchestrate(sys.argv[1], sys.argv[2])
+    prompt = sys.argv[1]
+    api_key = sys.argv[2]
+    mode = sys.argv[3] if len(sys.argv) > 3 else 'query'
+    orchestrate(prompt, api_key, mode)

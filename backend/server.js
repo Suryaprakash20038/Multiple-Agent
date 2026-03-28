@@ -302,7 +302,7 @@ async function runJsFallback(prompt, res) {
 
 // AI AGENT INTEGRATION (React <-> Python Swarm)
 app.post('/api/agent', async (req, res) => {
-  const { prompt } = req.body;
+  const { prompt, mode } = req.body;
   if (!prompt) return res.status(400).json({ error: 'No prompt provided' });
 
   const pythonCommand = os.platform() === 'win32' ? 'python' : 'python3';
@@ -311,7 +311,7 @@ app.post('/api/agent', async (req, res) => {
   // Try Python agent first
   try {
     const { stdout, stderr } = await new Promise((resolve, reject) => {
-      execFile(pythonCommand, [scriptPath, prompt, process.env.GEMINI_API_KEY || ''],
+      execFile(pythonCommand, [scriptPath, prompt, process.env.GEMINI_API_KEY || '', mode || 'query'],
         { env: { ...process.env, PYTHONIOENCODING: 'utf-8', CLAUDE_API_KEY: process.env.CLAUDE_API_KEY || '', OPENAI_API_KEY: process.env.OPENAI_API_KEY || '' }, timeout: 30000 },
         (error, stdout, stderr) => {
           if (stderr) console.error('🤖 Agent Telemetry (Stderr):\n', stderr);
@@ -564,6 +564,38 @@ app.delete('/api/leaves/:id', async (req, res) => {
   } catch (err) {
     console.error('Delete leave error:', err);
     res.status(500).json({ error: 'DB Error' });
+  }
+});
+
+// IMAGE PROXY — Avoids CORS/redirect issues in browser
+app.get('/api/image-proxy', async (req, res) => {
+  const { url } = req.query;
+  if (!url) return res.status(400).json({ error: 'No url provided' });
+  try {
+    const https = await import('https');
+    const http = await import('http');
+    const fetchImage = (imageUrl, redirects = 0) => {
+      if (redirects > 5) return res.status(500).json({ error: 'Too many redirects' });
+      const proto = imageUrl.startsWith('https') ? https.default : http.default;
+      proto.get(imageUrl, (imgRes) => {
+        if (imgRes.statusCode >= 300 && imgRes.statusCode < 400 && imgRes.headers.location) {
+          let redirect = imgRes.headers.location;
+          if (redirect.startsWith('/')) {
+            const parsed = new URL(imageUrl);
+            redirect = `${parsed.protocol}//${parsed.host}${redirect}`;
+          }
+          return fetchImage(redirect, redirects + 1);
+        }
+        res.setHeader('Content-Type', imgRes.headers['content-type'] || 'image/jpeg');
+        res.setHeader('Cache-Control', 'public, max-age=86400');
+        imgRes.pipe(res);
+      }).on('error', (err) => {
+        res.status(500).json({ error: 'Image fetch failed' });
+      });
+    };
+    fetchImage(url);
+  } catch (err) {
+    res.status(500).json({ error: 'Proxy error' });
   }
 });
 

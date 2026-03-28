@@ -14,6 +14,7 @@ const App = () => {
   const [activeTab, setActiveTab] = useState('employees');
   const [leaveForm, setLeaveForm] = useState({ employee_id: '', leave_type: 'Casual', start_date: '', end_date: '', reason: '' });
   const [showLeaveForm, setShowLeaveForm] = useState(false);
+  const [activeMode, setActiveMode] = useState('query');
 
   const fetchEmployees = async () => {
     try {
@@ -145,9 +146,17 @@ const App = () => {
           </p>
         </header>
 
-        {activeTab === 'employees' && <Search onAdd={fetchEmployees} />}
+        {(activeTab === 'employees' || activeMode === 'general') && (
+          <Search
+            onAdd={fetchEmployees}
+            activeMode={activeMode}
+            setActiveMode={setActiveMode}
+          />
+        )}
 
-        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2.5rem', justifyContent: 'center' }}>
+        {activeMode === 'query' && (
+          <>
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '2.5rem', justifyContent: 'center' }}>
           {[
             { id: 'employees', label: 'Employee Hub', icon: '👥' },
             { id: 'attendance', label: 'Attendance', icon: '📅' },
@@ -472,6 +481,8 @@ const App = () => {
             )}
           </div>
         </div>
+        </>
+        )}
       </div>
 
       {editingEmp && (

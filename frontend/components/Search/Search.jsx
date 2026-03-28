@@ -4,13 +4,22 @@ import './Search.css';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
 
-const PromptBox = ({ onAdd }) => {
+const PromptBox = ({ onAdd, activeMode, setActiveMode }) => {
   const [prompt, setPrompt] = useState('');
   const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
   const [testResults, setTestResults] = useState(null);
   const [queryResults, setQueryResults] = useState(null);
   const [chatResponse, setChatResponse] = useState('');
+  const [imageResult, setImageResult] = useState(null);
+  const [videoResult, setVideoResult] = useState(null);
+  const [videoType, setVideoType] = useState('mp4');
+  const [agentsUsed, setAgentsUsed] = useState([]);
+
+  const placeholders = {
+    query: "Ask about database... 'Add column Phone', 'List all developers', 'Apply leave for Surya 3 days'",
+    general: "Ask anything... 'Generate a sunset image', 'Send email to john@mail.com', 'Search latest AI news', 'Plan a trip to Goa'"
+  };
 
   const handleSubmit = async (e) => {
     if (e) e.preventDefault();
@@ -43,15 +52,35 @@ const PromptBox = ({ onAdd }) => {
     setTestResults(null);
     setQueryResults(null);
     setChatResponse('');
+    setImageResult(null);
+    setVideoResult(null);
+    setVideoType('mp4');
+    setAgentsUsed([]);
     setStatus('🤖 AI Agent analyzing intent...');
 
     try {
-      const response = await axios.post(`${API_URL}/api/agent`, { prompt });
+      const response = await axios.post(`${API_URL}/api/agent`, { prompt, mode: activeMode });
       const data = response.data;
 
       // Check for chat response (General Intelligence)
       if (data.chat_response) {
         setChatResponse(data.chat_response);
+      }
+      
+      if (data.image_result) {
+        // Proxy external images through backend to avoid CORS/redirect issues
+        const proxyUrl = `${API_URL}/api/image-proxy?url=${encodeURIComponent(data.image_result)}`;
+        setImageResult(proxyUrl);
+      }
+
+      if (data.video_result) {
+        setVideoResult(data.video_result);
+        setVideoType(data.video_type || 'mp4');
+      }
+
+      // Agents used (for general mode badge display)
+      if (data.agents_used && Array.isArray(data.agents_used)) {
+        setAgentsUsed(data.agents_used);
       }
 
       // Check for test results
@@ -96,9 +125,24 @@ const PromptBox = ({ onAdd }) => {
 
   return (
     <div className="prompt-wrapper">
+      <div className="mode-selector">
+        <button 
+          className={`mode-btn ${activeMode === 'query' ? 'active' : ''}`}
+          onClick={() => setActiveMode('query')}
+        >
+          <span className="mode-icon">🔍</span> Query Prompt
+        </button>
+        <button 
+          className={`mode-btn ${activeMode === 'general' ? 'active' : ''}`}
+          onClick={() => setActiveMode('general')}
+        >
+          <span className="mode-icon">🧠</span> General Prompt
+        </button>
+      </div>
+
       <div className="prompt-container">
         <textarea
-          placeholder="Ask anything... 'Add column Phone', 'List all developers', 'Who is Surya?', 'Change theme'"
+          placeholder={placeholders[activeMode]}
           className="ai-prompt-textarea"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
@@ -121,11 +165,88 @@ const PromptBox = ({ onAdd }) => {
 
       {status && <p className="search-status">{status}</p>}
 
+      {/* Agents Used Badges */}
+      {agentsUsed.length > 0 && (
+        <div className="agents-used-bar">
+          <span className="agents-label">Agents:</span>
+          {agentsUsed.map((a, i) => (
+            <span key={i} className="agent-badge">
+              {a.agent === 'Orchestrator' ? '🧠' : a.agent === 'Chat' ? '💬' : a.agent === 'Image' ? '🎨' : a.agent === 'Video' ? '🎬' : a.agent === 'Email' ? '📧' : a.agent === 'Search' ? '🔍' : '⚙️'} {a.agent}
+            </span>
+          ))}
+        </div>
+      )}
+
       {/* AI Chat Response Panel */}
       {chatResponse && (
         <div className="chat-response-panel">
-          <h4 className="chat-title">🤖 AI Assistant</h4>
+          <div className="chat-header">
+            <h4 className="chat-title">
+              {agentsUsed.some(a => a.agent === 'Image') ? '🎨 AI Vision Studio'
+                : agentsUsed.some(a => a.agent === 'Email') ? '📧 AI Mail Agent'
+                : agentsUsed.some(a => a.agent === 'Search') ? '🔍 AI Search Engine'
+                : agentsUsed.some(a => a.agent === 'Video') ? '🎬 AI Video Studio'
+                : imageResult ? '🎨 AI Image Creator'
+                : videoResult ? '🎬 AI Video Editor'
+                : '🤖 AI Assistant'}
+            </h4>
+          </div>
           <p className="chat-content">{chatResponse}</p>
+          
+          {imageResult && (
+            <div className="media-result-container">
+              <div className="media-frame">
+                <img
+                  src={imageResult}
+                  alt="AI Generated"
+                  className="generated-media"
+                  referrerPolicy="no-referrer"
+                  onLoad={(e) => {
+                    e.target.classList.add('loaded');
+                    setStatus('✅ Vision Synthesized Successfully');
+                  }}
+                  onError={(e) => {
+                    e.target.style.display = 'none';
+                    setStatus('❌ Image failed to load. Try a different prompt.');
+                  }}
+                />
+                <div className="media-loader">🎨 Synthesizing Pixel-Perfect Vision...</div>
+              </div>
+              <div className="media-actions">
+                <a href={imageResult} target="_blank" rel="noreferrer" className="media-btn">Open in High-Res ↗️</a>
+                <a href={imageResult} download="ai-vision.jpg" className="media-btn">Save to Hub ⬇️</a>
+              </div>
+            </div>
+          )}
+
+          {videoResult && (
+            <div className="media-result-container">
+              {videoType === 'embed' ? (
+                <iframe
+                  src={videoResult}
+                  title="AI Video"
+                  style={{ width: '100%', height: '400px', borderRadius: '16px', border: 'none' }}
+                  allow="autoplay; encrypted-media; fullscreen"
+                  allowFullScreen
+                  onLoad={() => setStatus('✅ Video Loaded Successfully')}
+                />
+              ) : (
+                <video
+                  src={videoResult}
+                  controls
+                  autoPlay
+                  muted
+                  playsInline
+                  style={{ width: '100%', borderRadius: '16px', opacity: 1 }}
+                  onLoadedData={() => setStatus('✅ Video Rendered Successfully')}
+                  onError={() => setStatus('❌ Video failed to load. Try a different prompt.')}
+                />
+              )}
+              <div className="media-actions">
+                <span className="media-status">Rendered in 4K 💎</span>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
