@@ -159,14 +159,12 @@ async function runTests() {
   // ==========================================
   //  CLEANUP: Delete test user (Disabled to allow verification)
   // ==========================================
-  /*
-  if (testUserId) {
-    try {
-      await fetch(`${API_URL}/api/employees/${testUserId}`, { method: 'DELETE' });
-      console.log(`\n🧹 Cleanup: Deleted test employee (ID: ${testUserId})`);
-    } catch (e) { /* ignore cleanup errors */ }
-  }
-  */
+  // if (testUserId) {
+  //   try {
+  //     await fetch(`${API_URL}/api/employees/${testUserId}`, { method: 'DELETE' });
+  //     console.log(`\n🧹 Cleanup: Deleted test employee (ID: ${testUserId})`);
+  //   } catch (e) { /* ignore cleanup errors */ }
+  // }
 
   // ==========================================
   //  RESULTS
